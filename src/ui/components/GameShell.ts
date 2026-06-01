@@ -1,3 +1,4 @@
+import { audioManager } from '../../audio/audioManager';
 import {
   advanceTurnPlaceholder,
   finishMatchPlaceholder,
@@ -87,6 +88,10 @@ function renderInputDebugPanel(state: InputState): string {
   `;
 }
 
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
 function renderSegmentedButton(value: string, label: string, active: boolean, group: string): string {
   return `
     <button
@@ -97,6 +102,43 @@ function renderSegmentedButton(value: string, label: string, active: boolean, gr
     >
       ${label}
     </button>
+  `;
+}
+
+
+function renderAudioPanel(): string {
+  const settings = audioManager.getSettings();
+
+  return `
+    <section class="game-shell__panel game-shell__panel--audio" aria-labelledby="audio-title">
+      <div class="game-shell__panel-heading">
+        <p id="audio-title" class="game-shell__panel-label">Audio</p>
+        <label class="audio-panel__mute">
+          <input type="checkbox" data-audio-muted ${settings.muted ? 'checked' : ''} />
+          <span>Mute</span>
+        </label>
+      </div>
+
+      <label class="audio-panel__slider">
+        <span>BGM <output data-audio-bgm-value>${formatPercent(settings.bgmVolume)}</output></span>
+        <input type="range" min="0" max="1" step="0.05" value="${settings.bgmVolume}" data-audio-bgm-volume />
+      </label>
+
+      <label class="audio-panel__slider">
+        <span>SE <output data-audio-se-value>${formatPercent(settings.seVolume)}</output></span>
+        <input type="range" min="0" max="1" step="0.05" value="${settings.seVolume}" data-audio-se-volume />
+      </label>
+
+      <div class="audio-panel__actions">
+        <button class="button button--secondary" type="button" data-audio-test-se>
+          Test SE
+        </button>
+        <button class="button button--icon" type="button" data-audio-stop-bgm>
+          Stop BGM
+        </button>
+      </div>
+      <p class="audio-panel__note">BGM starts only from a user action such as Start.</p>
+    </section>
   `;
 }
 
@@ -222,6 +264,8 @@ export function GameShell(): string {
 
         ${renderInputDebugPanel(inputManager.getInputState())}
 
+        ${renderAudioPanel()}
+
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result panel placeholder</p>
           <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
@@ -243,6 +287,13 @@ export function setupGameShell(root: HTMLElement): void {
   const modeButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-mode]'));
   const difficultyButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-difficulty]'));
   const actionButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-action]'));
+  const bgmVolumeInput = root.querySelector<HTMLInputElement>('[data-audio-bgm-volume]');
+  const seVolumeInput = root.querySelector<HTMLInputElement>('[data-audio-se-volume]');
+  const mutedInput = root.querySelector<HTMLInputElement>('[data-audio-muted]');
+  const testSeButton = root.querySelector<HTMLButtonElement>('[data-audio-test-se]');
+  const stopBgmButton = root.querySelector<HTMLButtonElement>('[data-audio-stop-bgm]');
+  const bgmVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-bgm-value]');
+  const seVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-se-value]');
   const inputStateFields = {
     aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
     aimRight: root.querySelector<HTMLElement>('[data-input-state="aimRight"]'),
@@ -253,6 +304,32 @@ export function setupGameShell(root: HTMLElement): void {
   };
 
   setupVirtualControls(root);
+  audioManager.preload();
+
+  audioManager.subscribe((settings) => {
+    if (bgmVolumeInput) {
+      bgmVolumeInput.value = String(settings.bgmVolume);
+    }
+
+    if (seVolumeInput) {
+      seVolumeInput.value = String(settings.seVolume);
+    }
+
+    if (mutedInput) {
+      mutedInput.checked = settings.muted;
+    }
+
+    if (bgmVolumeValue) {
+      bgmVolumeValue.value = formatPercent(settings.bgmVolume);
+      bgmVolumeValue.textContent = formatPercent(settings.bgmVolume);
+    }
+
+    if (seVolumeValue) {
+      seVolumeValue.value = formatPercent(settings.seVolume);
+      seVolumeValue.textContent = formatPercent(settings.seVolume);
+    }
+  });
+
 
   inputManager.subscribe((inputState) => {
     inputStateFields.aimLeft && (inputStateFields.aimLeft.textContent = inputValue(inputState.aimLeft));
@@ -298,6 +375,7 @@ export function setupGameShell(root: HTMLElement): void {
         return;
       }
 
+      audioManager.playSe('select');
       setMode(mode);
     });
   });
@@ -310,6 +388,7 @@ export function setupGameShell(root: HTMLElement): void {
         return;
       }
 
+      audioManager.playSe('select');
       setDifficulty(difficulty);
     });
   });
@@ -319,12 +398,21 @@ export function setupGameShell(root: HTMLElement): void {
       const action = button.dataset.gameShellAction;
 
       if (action === 'start') {
+        audioManager.playSe('start');
+        audioManager.playBgm('match');
         startMatch();
       }
 
       if (action === 'pause') {
         const state = getMatchState();
-        state.status === 'paused' ? resumeMatch() : pauseMatch();
+
+        audioManager.playSe('select');
+
+        if (state.status === 'paused') {
+          resumeMatch();
+        } else {
+          pauseMatch();
+        }
       }
 
       if (action === 'turn') {
@@ -332,12 +420,34 @@ export function setupGameShell(root: HTMLElement): void {
       }
 
       if (action === 'retry') {
+        audioManager.playSe('select');
         retryMatch();
       }
 
       if (action === 'finish') {
+        audioManager.playSe('whistle');
         finishMatchPlaceholder();
       }
     });
+  });
+
+  bgmVolumeInput?.addEventListener('input', () => {
+    audioManager.setBgmVolume(Number(bgmVolumeInput.value));
+  });
+
+  seVolumeInput?.addEventListener('input', () => {
+    audioManager.setSeVolume(Number(seVolumeInput.value));
+  });
+
+  mutedInput?.addEventListener('change', () => {
+    audioManager.setMuted(mutedInput.checked);
+  });
+
+  testSeButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+  });
+
+  stopBgmButton?.addEventListener('click', () => {
+    audioManager.stopBgm();
   });
 }

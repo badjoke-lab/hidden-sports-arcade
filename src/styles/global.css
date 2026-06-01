@@ -469,6 +469,74 @@ dd {
   transform: translateY(1px) scale(0.98);
 }
 
+
+.game-shell__panel-heading,
+.audio-panel__slider,
+.audio-panel__mute {
+  min-width: 0;
+}
+
+.game-shell__panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.game-shell__panel-heading .game-shell__panel-label {
+  margin-bottom: 0;
+}
+
+.audio-panel__mute {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #dbeafe;
+  font-weight: 800;
+}
+
+.audio-panel__mute input {
+  width: 18px;
+  height: 18px;
+  accent-color: #facc15;
+}
+
+.audio-panel__slider {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: #dbeafe;
+  font-weight: 800;
+}
+
+.audio-panel__slider span {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audio-panel__slider input {
+  width: 100%;
+  min-width: 0;
+  accent-color: #38bdf8;
+}
+
+.audio-panel__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.audio-panel__note {
+  margin: 10px 0 0;
+  color: #94a3b8;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .game-shell__input-debug {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -708,6 +776,7 @@ dd {
   }
 
   .game-shell__actions,
+  .audio-panel__actions,
   .virtual-controls {
     grid-template-columns: 1fr;
   }
