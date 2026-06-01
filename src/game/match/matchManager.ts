@@ -19,7 +19,7 @@ const createInitialMatchState = (): MatchState => ({
   },
   result: {
     winner: null,
-    reason: 'Boccia scoring preview waits for the first stopped throw.',
+    reason: 'Boccia VS CPU preview waits for the player throw, CPU throw, then scoring preview.',
   },
   objective: defaultObjective,
 });
@@ -68,7 +68,7 @@ export function startMatch(): MatchState {
     status: 'playing',
     result: {
       winner: null,
-      reason: 'Aim, charge, and throw one ball. Scoring preview appears after it stops.',
+      reason: 'Aim, charge, and throw one ball. The CPU will throw one ball before scoring preview.',
     },
   }));
 }

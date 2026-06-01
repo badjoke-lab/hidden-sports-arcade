@@ -32,10 +32,10 @@ export const BOCCIA_CONFIG = {
 
 export const BOCCIA_PLACEHOLDERS = {
   round: '1',
-  balls: 'Player 1 thrown / Opponent 3 static',
-  phase: 'Aiming',
+  balls: 'Player 1 thrown / CPU 1 thrown',
+  phase: 'Player aiming',
   objective: 'Place your ball closest to the jack.',
-  scoringPreview: 'Waiting for stopped ball',
+  scoringPreview: 'Waiting for player + CPU throws',
   closestSide: '—',
-  note: 'CPU and full round flow start in later PRs.',
+  note: 'CPU aims near the jack after the player ball stops; Local 2P and full rounds come later.',
 } as const;
