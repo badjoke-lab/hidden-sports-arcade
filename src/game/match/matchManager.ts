@@ -2,8 +2,7 @@ import type { Difficulty, MatchMode, MatchState } from '../types';
 
 type MatchStateListener = (state: MatchState) => void;
 
-const noResultReason = 'No result yet';
-const defaultObjective = 'Match objective placeholder for a future sport-specific rules module.';
+const defaultObjective = 'Place your ball closest to the jack.';
 
 const createInitialMatchState = (): MatchState => ({
   sportId: 'boccia',
@@ -20,7 +19,7 @@ const createInitialMatchState = (): MatchState => ({
   },
   result: {
     winner: null,
-    reason: noResultReason,
+    reason: 'Scene foundation loaded. Throwing starts in PR-009.',
   },
   objective: defaultObjective,
 });
@@ -69,7 +68,7 @@ export function startMatch(): MatchState {
     status: 'playing',
     result: {
       winner: null,
-      reason: noResultReason,
+      reason: 'Boccia setup placeholder active. Throwing starts in PR-009.',
     },
   }));
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
+import { BocciaScene } from './scenes/BocciaScene';
 
 export function createGame(parent: HTMLElement): Phaser.Game {
   return new Phaser.Game({
@@ -8,7 +9,7 @@ export function createGame(parent: HTMLElement): Phaser.Game {
     width: 720,
     height: 400,
     backgroundColor: '#101827',
-    scene: [BootScene],
+    scene: [BootScene, BocciaScene],
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

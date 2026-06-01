@@ -13,6 +13,7 @@ import {
 } from '../../game/match/matchManager';
 import type { Difficulty, MatchMode, MatchParticipant, MatchState, MatchStatus } from '../../game/types';
 import { inputManager } from '../../input/inputManager';
+import { BOCCIA_PLACEHOLDERS } from '../../game/sports/boccia/bocciaConfig';
 import { missions } from '../../progress/missions';
 import {
   completeMission,
@@ -37,8 +38,8 @@ const difficultyLabels: Record<Difficulty, string> = {
 };
 
 const statusLabels: Record<MatchStatus, string> = {
-  ready: 'Ready',
-  playing: 'Playing',
+  ready: 'Scene foundation',
+  playing: 'Scene foundation active',
   paused: 'Paused',
   finished: 'Finished placeholder',
 };
@@ -198,7 +199,7 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Reusable Play mode shell. Boccia gameplay starts in a later PR.</p>
+        <p class="section-heading__note">Boccia court foundation is live. Throwing starts in PR-009.</p>
       </div>
 
       <div class="game-shell__layout">
@@ -243,6 +244,28 @@ export function GameShell(): string {
             </dl>
           </div>
 
+          <div class="game-shell__panel game-shell__panel--boccia">
+            <p class="game-shell__panel-label">Boccia HUD placeholder</p>
+            <dl class="game-shell__match-details" aria-live="polite">
+              <div>
+                <dt>Round</dt>
+                <dd>${BOCCIA_PLACEHOLDERS.round}</dd>
+              </div>
+              <div>
+                <dt>Balls</dt>
+                <dd>${BOCCIA_PLACEHOLDERS.balls}</dd>
+              </div>
+              <div>
+                <dt>Current phase</dt>
+                <dd>${BOCCIA_PLACEHOLDERS.phase}</dd>
+              </div>
+              <div>
+                <dt>Note</dt>
+                <dd>${BOCCIA_PLACEHOLDERS.note}</dd>
+              </div>
+            </dl>
+          </div>
+
           <div class="game-shell__panel">
             <p class="game-shell__panel-label">Mode placeholder</p>
             <div class="game-shell__options" role="group" aria-label="Match mode placeholder selector">
@@ -277,8 +300,8 @@ export function GameShell(): string {
 
       <div class="game-shell__lower-grid">
         <section class="game-shell__panel" aria-labelledby="objective-title">
-          <p id="objective-title" class="game-shell__panel-label">Objective placeholder</p>
-          <p class="game-shell__objective">Objective: <span data-game-shell-objective>${matchState.objective}</span></p>
+          <p id="objective-title" class="game-shell__panel-label">Boccia objective</p>
+          <p class="game-shell__objective">Objective: <span data-game-shell-objective>${matchState.objective}</span><br /><span class="game-shell__note">${BOCCIA_PLACEHOLDERS.note}</span></p>
         </section>
 
         <section class="game-shell__panel" aria-labelledby="controls-title">

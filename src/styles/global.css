@@ -308,6 +308,10 @@ dd {
   border-color: rgba(250, 204, 21, 0.28);
 }
 
+.game-shell__panel--boccia {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .game-shell__panel--result {
   border-color: rgba(56, 189, 248, 0.24);
 }
@@ -348,6 +352,13 @@ dd {
   color: #facc15;
   font-size: 1.7rem;
   line-height: 1;
+}
+
+.game-shell__note {
+  display: inline-block;
+  margin-top: 8px;
+  color: #7dd3fc;
+  font-size: 0.9rem;
 }
 
 .game-shell__match-details {
