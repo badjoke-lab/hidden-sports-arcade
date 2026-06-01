@@ -322,8 +322,8 @@ dd {
 }
 
 .game-shell__score,
-.game-shell__status,
 .game-shell__objective,
+.game-shell__match-details,
 .game-shell__panel--result p:last-child {
   margin-bottom: 0;
   color: #f8fafc;
@@ -350,15 +350,39 @@ dd {
   line-height: 1;
 }
 
-.game-shell__status {
+.game-shell__match-details {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.game-shell__match-details div {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.game-shell__match-details dd {
   color: #7dd3fc;
+  text-align: right;
 }
 
 .game-shell__options,
 .game-shell__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.game-shell__options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.game-shell__actions {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 92px), 1fr));
 }
 
 .game-shell__option {
@@ -714,13 +738,15 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .game-shell__hints div {
+  .game-shell__hints div,
+  .game-shell__match-details div {
     align-items: flex-start;
     flex-direction: column;
     gap: 2px;
   }
 
-  .game-shell__hints dd {
+  .game-shell__hints dd,
+  .game-shell__match-details dd {
     text-align: left;
   }
 }
