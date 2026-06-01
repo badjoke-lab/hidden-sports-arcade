@@ -74,8 +74,11 @@ function resultText(state: MatchState): string {
 
 function renderInputDebugPanel(state: InputState): string {
   return `
-    <section class="game-shell__panel game-shell__panel--input" aria-labelledby="input-debug-title">
-      <p id="input-debug-title" class="game-shell__panel-label">Input debug</p>
+    <details class="game-shell__panel game-shell__panel--input game-shell__details">
+      <summary class="game-shell__details-summary">
+        <span class="game-shell__panel-label">Debug input</span>
+        <span>Show live input state</span>
+      </summary>
       <dl class="game-shell__input-debug" aria-live="polite">
         <div>
           <dt>Left</dt>
@@ -102,7 +105,7 @@ function renderInputDebugPanel(state: InputState): string {
           <dd data-input-state="lastSource">${state.lastSource ?? 'none'}</dd>
         </div>
       </dl>
-    </section>
+    </details>
   `;
 }
 
@@ -146,8 +149,11 @@ function renderProgressPanel(): string {
   const progress = getProgressState();
 
   return `
-    <section class="game-shell__panel game-shell__panel--progress" aria-labelledby="progress-title">
-      <p id="progress-title" class="game-shell__panel-label">Progress</p>
+    <details class="game-shell__panel game-shell__panel--progress game-shell__details">
+      <summary class="game-shell__details-summary">
+        <span id="progress-title" class="game-shell__panel-label">Progress</span>
+        <span><span data-progress-missions-completed>${completedMissionCount(progress)}</span> / <span data-progress-missions-total>${missions.length}</span> missions complete</span>
+      </summary>
       <dl class="game-shell__progress-details" aria-live="polite">
         <div>
           <dt>Favorites</dt>
@@ -167,22 +173,25 @@ function renderProgressPanel(): string {
         </div>
       </dl>
       <button class="button button--icon game-shell__reset-progress" type="button" data-progress-reset>Reset progress</button>
-    </section>
+    </details>
   `;
 }
 
 
 function renderBocciaRulesPanel(): string {
   return `
-    <section id="boccia-rules" class="game-shell__panel game-shell__panel--rules" aria-labelledby="boccia-rules-title" tabindex="-1">
-      <div class="game-shell__panel-heading">
-        <div>
-          <p class="game-shell__panel-label">Rules</p>
-          <h3 id="boccia-rules-title">Boccia rules for this arcade preview</h3>
-        </div>
+    <details id="boccia-rules" class="game-shell__panel game-shell__panel--rules game-shell__details" tabindex="-1">
+      <summary class="game-shell__details-summary game-shell__details-summary--rules">
+        <span>
+          <span class="game-shell__panel-label">Boccia rules</span>
+          <strong id="boccia-rules-title">Simplified arcade rules</strong>
+        </span>
+        <span class="game-shell__summary-note">Simplified, not official full Boccia rules</span>
+      </summary>
+      <div class="game-shell__panel-heading game-shell__panel-heading--inside-details">
+        <p class="game-shell__rules-note">This is a simplified arcade version designed to teach the core idea of Boccia. It is not a full simulation of official Boccia rules.</p>
         <button class="button button--secondary" type="button" data-boccia-replay-tutorial>Replay tutorial</button>
       </div>
-      <p class="game-shell__rules-note">This is a simplified arcade version designed to teach the core idea of Boccia. It is not a full simulation of official Boccia rules.</p>
       <div class="game-shell__rules-grid">
         ${bocciaRuleSections
           .map(
@@ -195,7 +204,7 @@ function renderBocciaRulesPanel(): string {
           )
           .join('')}
       </div>
-    </section>
+    </details>
   `;
 }
 
@@ -224,9 +233,12 @@ function renderAudioPanel(): string {
   const settings = audioManager.getSettings();
 
   return `
-    <section class="game-shell__panel game-shell__panel--audio" aria-labelledby="audio-title">
-      <div class="game-shell__panel-heading">
-        <p id="audio-title" class="game-shell__panel-label">Audio</p>
+    <details class="game-shell__panel game-shell__panel--audio game-shell__details">
+      <summary class="game-shell__details-summary">
+        <span id="audio-title" class="game-shell__panel-label">Settings / Audio</span>
+        <span>${settings.muted ? 'Muted' : 'Sound on'}</span>
+      </summary>
+      <div class="game-shell__panel-heading game-shell__panel-heading--inside-details">
         <label class="audio-panel__mute">
           <input type="checkbox" data-audio-muted ${settings.muted ? 'checked' : ''} />
           <span>Mute</span>
@@ -252,7 +264,7 @@ function renderAudioPanel(): string {
         </button>
       </div>
       <p class="audio-panel__note">BGM starts only from a user action such as Start.</p>
-    </section>
+    </details>
   `;
 }
 
@@ -261,28 +273,33 @@ export function GameShell(): string {
 
   return `
     <section id="play" class="game-shell" aria-labelledby="game-shell-title">
-      <div class="section-heading section-heading--split">
+      <div class="section-heading section-heading--split game-shell__heading">
         <div>
-          <p class="eyebrow">Game shell</p>
+          <p class="eyebrow">Play Boccia</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
         <div class="section-heading__actions">
-          <p class="section-heading__note">Boccia now supports one-ball VS CPU and Local 2P scoring previews.</p>
-          <button class="button button--secondary" type="button" data-boccia-rules-button>Rules</button>
+          <p class="section-heading__note">One-ball VS CPU and Local 2P arcade scoring preview.</p>
+          <button class="button button--secondary" type="button" data-boccia-rules-button>Boccia rules</button>
           <button class="button button--icon" type="button" data-boccia-replay-tutorial>Replay tutorial</button>
         </div>
       </div>
 
       <div class="game-shell__layout">
-        <div class="game-shell__stage" aria-label="Boccia Phaser stage placeholder">
+        <div class="game-shell__stage" aria-label="Boccia play area">
           <div class="game-shell__frame">
-            <div id="game-root" class="game-shell__canvas" aria-label="Hidden Sports Arcade Phaser shell canvas"></div>
+            <div id="game-root" class="game-shell__canvas" aria-label="Hidden Sports Arcade Boccia game canvas"></div>
           </div>
         </div>
 
-        <aside class="game-shell__hud" aria-label="Boccia match heads-up display placeholder">
+        <section class="game-shell__panel game-shell__panel--virtual" aria-labelledby="virtual-controls-title">
+          <p id="virtual-controls-title" class="game-shell__panel-label">Virtual controls</p>
+          ${VirtualControls()}
+        </section>
+
+        <aside class="game-shell__hud" aria-label="Boccia match heads-up display">
           <div class="game-shell__panel game-shell__panel--score">
-            <p class="game-shell__panel-label">Boccia preview score</p>
+            <p class="game-shell__panel-label">Preview score</p>
             <div class="game-shell__score" aria-live="polite">
               <span>P1 <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
               <span><span data-game-shell-opponent-score-label>${matchState.mode === 'local_2p' ? 'P2' : 'CPU'}</span> <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
@@ -290,7 +307,7 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel game-shell__panel--match">
-            <p class="game-shell__panel-label">Match state foundation</p>
+            <p class="game-shell__panel-label">Match</p>
             <dl class="game-shell__match-details" aria-live="polite">
               <div>
                 <dt>Status</dt>
@@ -316,7 +333,7 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel game-shell__panel--boccia">
-            <p class="game-shell__panel-label">Boccia HUD</p>
+            <p class="game-shell__panel-label">Current phase</p>
             <dl class="game-shell__match-details" aria-live="polite">
               <div>
                 <dt>Round</dt>
@@ -327,11 +344,11 @@ export function GameShell(): string {
                 <dd>${BOCCIA_PLACEHOLDERS.balls}</dd>
               </div>
               <div>
-                <dt>Current phase</dt>
+                <dt>Phase</dt>
                 <dd data-boccia-phase>${BOCCIA_PLACEHOLDERS.phase}</dd>
               </div>
               <div>
-                <dt>Scoring preview</dt>
+                <dt>Scoring</dt>
                 <dd data-boccia-scoring-preview>${BOCCIA_PLACEHOLDERS.scoringPreview}</dd>
               </div>
               <div>
@@ -346,15 +363,27 @@ export function GameShell(): string {
                 <dt>CPU note</dt>
                 <dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'Local 2P waits for P1 to throw.' : 'CPU waits for the player throw.'}</dd>
               </div>
-              <div>
-                <dt>Note</dt>
-                <dd>${BOCCIA_PLACEHOLDERS.note}</dd>
-              </div>
             </dl>
           </div>
 
-          <div class="game-shell__panel">
-            <p class="game-shell__panel-label">Match mode</p>
+          <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
+            <p id="result-title" class="game-shell__panel-label">Preview result</p>
+            <p><span data-game-shell-result>${resultText(matchState)}</span></p>
+          </section>
+
+          <section class="game-shell__panel" aria-labelledby="actions-title">
+            <p id="actions-title" class="game-shell__panel-label">Actions</p>
+            <div class="game-shell__actions" aria-label="Match controls">
+              <button class="button button--primary" type="button" data-game-shell-action="start">Start</button>
+              <button class="button button--secondary" type="button" data-game-shell-action="pause">Pause</button>
+              <button class="button button--secondary" type="button" data-game-shell-action="turn">Next turn</button>
+              <button class="button button--icon" type="button" data-game-shell-action="retry">Retry</button>
+              <button class="button button--icon" type="button" data-game-shell-action="finish">Finish</button>
+            </div>
+          </section>
+
+          <div class="game-shell__panel game-shell__panel--mode">
+            <p class="game-shell__panel-label">Mode</p>
             <div class="game-shell__options" role="group" aria-label="Match mode selector">
               ${(Object.keys(modeLabels) as MatchMode[])
                 .map((mode) => renderSegmentedButton(mode, modeLabels[mode], mode === matchState.mode, 'mode'))
@@ -362,8 +391,8 @@ export function GameShell(): string {
             </div>
           </div>
 
-          <div class="game-shell__panel">
-            <p class="game-shell__panel-label">CPU difficulty</p>
+          <div class="game-shell__panel game-shell__panel--difficulty">
+            <p class="game-shell__panel-label">Difficulty</p>
             <div class="game-shell__options" role="group" aria-label="CPU difficulty selector">
               ${(Object.keys(difficultyLabels) as Difficulty[])
                 .map((difficulty) =>
@@ -378,21 +407,21 @@ export function GameShell(): string {
             </div>
           </div>
         </aside>
+
+        ${renderBocciaLearningPanel()}
       </div>
 
-      <section class="game-shell__panel game-shell__panel--virtual" aria-labelledby="virtual-controls-title">
-        <p id="virtual-controls-title" class="game-shell__panel-label">Virtual controls</p>
-        ${VirtualControls()}
-      </section>
-
-      <div class="game-shell__lower-grid">
+      <div class="game-shell__lower-grid" aria-label="Boccia secondary panels">
         <section class="game-shell__panel" aria-labelledby="objective-title">
-          <p id="objective-title" class="game-shell__panel-label">Boccia objective</p>
-          <p class="game-shell__objective">Objective: <span data-game-shell-objective>${matchState.objective}</span><br /><span class="game-shell__note">${BOCCIA_PLACEHOLDERS.note}</span></p>
+          <p id="objective-title" class="game-shell__panel-label">Objective</p>
+          <p class="game-shell__objective"><span data-game-shell-objective>${matchState.objective}</span><br /><span class="game-shell__note">${BOCCIA_PLACEHOLDERS.note}</span></p>
         </section>
 
-        <section class="game-shell__panel" aria-labelledby="controls-title">
-          <p id="controls-title" class="game-shell__panel-label">Control hints</p>
+        <details class="game-shell__panel game-shell__details game-shell__panel--hints">
+          <summary class="game-shell__details-summary">
+            <span id="controls-title" class="game-shell__panel-label">Control hints</span>
+            <span>Keyboard shortcuts</span>
+          </summary>
           <dl class="game-shell__hints">
             ${controlHints
               .map(
@@ -405,33 +434,15 @@ export function GameShell(): string {
               )
               .join('')}
           </dl>
-        </section>
+        </details>
 
-        ${renderBocciaLearningPanel()}
-
-        <section class="game-shell__panel" aria-labelledby="actions-title">
-          <p id="actions-title" class="game-shell__panel-label">Shell status flow</p>
-          <div class="game-shell__actions" aria-label="Match placeholder controls">
-            <button class="button button--primary" type="button" data-game-shell-action="start">Start</button>
-            <button class="button button--secondary" type="button" data-game-shell-action="pause">Pause</button>
-            <button class="button button--secondary" type="button" data-game-shell-action="turn">Next turn</button>
-            <button class="button button--icon" type="button" data-game-shell-action="retry">Retry</button>
-            <button class="button button--icon" type="button" data-game-shell-action="finish">Finish</button>
-          </div>
-        </section>
-
-        ${renderInputDebugPanel(inputManager.getInputState())}
+        ${renderBocciaRulesPanel()}
 
         ${renderAudioPanel()}
 
         ${renderProgressPanel()}
 
-        ${renderBocciaRulesPanel()}
-
-        <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
-          <p id="result-title" class="game-shell__panel-label">Result preview</p>
-          <p>Preview result: <span data-game-shell-result>${resultText(matchState)}</span></p>
-        </section>
+        ${renderInputDebugPanel(inputManager.getInputState())}
       </div>
     </section>
   `;
@@ -459,11 +470,11 @@ export function setupGameShell(root: HTMLElement): void {
   const bgmVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-bgm-value]');
   const seVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-se-value]');
   const progressFavorites = root.querySelector<HTMLElement>('[data-progress-favorites]');
-  const progressMissionsCompleted = root.querySelector<HTMLElement>('[data-progress-missions-completed]');
+  const progressMissionsCompleted = Array.from(root.querySelectorAll<HTMLElement>('[data-progress-missions-completed]'));
   const progressRecent = root.querySelector<HTMLElement>('[data-progress-recent]');
   const progressLatestMission = root.querySelector<HTMLElement>('[data-progress-latest-mission]');
   const progressResetButton = root.querySelector<HTMLButtonElement>('[data-progress-reset]');
-  const rulesPanel = root.querySelector<HTMLElement>('#boccia-rules');
+  const rulesPanel = root.querySelector<HTMLDetailsElement>('#boccia-rules');
   const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-rules-button]'));
   const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
   const guidedStartButton = root.querySelector<HTMLButtonElement>('[data-boccia-guided-start]');
@@ -600,8 +611,11 @@ export function setupGameShell(root: HTMLElement): void {
   rulesButtons.forEach((button) => {
     button.addEventListener('click', () => {
       audioManager.playSe('select');
-      rulesPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      rulesPanel?.focus({ preventScroll: true });
+      if (rulesPanel) {
+        rulesPanel.open = true;
+        rulesPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        rulesPanel.focus({ preventScroll: true });
+      }
     });
   });
 
@@ -615,7 +629,7 @@ export function setupGameShell(root: HTMLElement): void {
   subscribeProgress((progress) => {
     progressFavorites && (progressFavorites.textContent = String(progress.favorites.length));
     progressRecent && (progressRecent.textContent = sportLabel(progress.recentSports[0]));
-    progressMissionsCompleted && (progressMissionsCompleted.textContent = String(completedMissionCount(progress)));
+    progressMissionsCompleted.forEach((item) => (item.textContent = String(completedMissionCount(progress))));
     progressLatestMission && (progressLatestMission.textContent = latestMissionTitle(progress));
   });
 

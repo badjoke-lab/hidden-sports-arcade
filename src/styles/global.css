@@ -1100,3 +1100,268 @@ dd {
     grid-template-columns: 1fr;
   }
 }
+
+/* PR-017 game-first play layout refinements */
+.game-shell__layout {
+  grid-template-areas:
+    "stage hud"
+    "controls hud"
+    "learn hud";
+  grid-template-rows: auto auto 1fr;
+}
+
+.game-shell__stage {
+  grid-area: stage;
+}
+
+.game-shell__panel--virtual {
+  grid-area: controls;
+  margin-top: 0;
+}
+
+.game-shell__panel--learning {
+  grid-area: learn;
+}
+
+.game-shell__hud {
+  grid-area: hud;
+  grid-template-columns: 1fr;
+}
+
+.game-shell__frame {
+  box-shadow: 0 22px 60px rgba(56, 189, 248, 0.12);
+}
+
+.game-shell__canvas {
+  min-height: clamp(280px, 54vw, 460px);
+}
+
+.game-shell__lower-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.game-shell__details {
+  overflow: hidden;
+}
+
+.game-shell__details-summary {
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cbd5e1;
+  font-weight: 800;
+  list-style: none;
+}
+
+.game-shell__details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.game-shell__details-summary::after {
+  content: "+";
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  color: #07111f;
+  background: #facc15;
+  font-weight: 900;
+}
+
+.game-shell__details[open] > .game-shell__details-summary {
+  margin-bottom: 12px;
+}
+
+.game-shell__details[open] > .game-shell__details-summary::after {
+  content: "−";
+}
+
+.game-shell__details-summary .game-shell__panel-label {
+  margin-bottom: 0;
+}
+
+.game-shell__details-summary--rules {
+  align-items: flex-start;
+}
+
+.game-shell__summary-note {
+  max-width: 220px;
+  color: #fef3c7;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.game-shell__panel-heading--inside-details {
+  align-items: flex-start;
+  margin-top: 0;
+}
+
+.game-shell__panel-heading--inside-details .game-shell__rules-note {
+  margin-bottom: 0;
+}
+
+.game-shell__panel--rules {
+  grid-column: 1 / -1;
+}
+
+.game-shell__learning-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 820px) {
+  .game-shell__layout {
+    grid-template-areas:
+      "stage"
+      "controls"
+      "hud"
+      "learn";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-shell__hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__panel--score,
+  .game-shell__panel--match,
+  .game-shell__panel--boccia {
+    grid-column: 1 / -1;
+  }
+
+  .game-shell__lower-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__canvas {
+    min-height: clamp(240px, 68vw, 420px);
+  }
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px;
+  }
+
+  .site-header__mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+  }
+
+  .site-header__tagline {
+    font-size: 0.8rem;
+  }
+
+  .game-shell,
+  .sports,
+  .site-footer {
+    margin-top: 16px;
+    padding: 14px;
+  }
+
+  .game-shell__heading {
+    margin-bottom: 14px;
+  }
+
+  .game-shell__canvas {
+    min-height: clamp(220px, 74vw, 330px);
+  }
+
+  .game-shell__hud,
+  .game-shell__lower-grid,
+  .game-shell__learning-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .game-shell__panel {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .game-shell__score strong {
+    font-size: 1.45rem;
+  }
+
+  .virtual-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .virtual-controls__button {
+    min-height: 50px;
+    border-radius: 16px;
+    padding: 10px 8px;
+  }
+
+  .game-shell__learning-copy,
+  .game-shell__learning-status {
+    font-size: 0.92rem;
+  }
+
+  .game-shell__details-summary {
+    align-items: flex-start;
+  }
+
+  .game-shell__details-summary,
+  .game-shell__panel-heading--inside-details {
+    flex-direction: column;
+  }
+
+  .game-shell__details-summary::after {
+    position: absolute;
+    right: 12px;
+  }
+
+  .game-shell__details {
+    position: relative;
+  }
+
+  .game-shell__summary-note {
+    max-width: calc(100% - 42px);
+    text-align: left;
+  }
+
+  .game-shell__rules-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sports__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sport-card {
+    min-height: auto;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .sport-card--soon .sport-card__summary,
+  .sport-card--soon .sport-card__facts,
+  .sport-card--soon .sport-card__tags {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-shell {
+    width: min(1120px, calc(100% - 14px));
+  }
+
+  .game-shell,
+  .sports,
+  .site-footer {
+    padding: 12px;
+  }
+
+  .game-shell__canvas {
+    min-height: 208px;
+  }
+}
