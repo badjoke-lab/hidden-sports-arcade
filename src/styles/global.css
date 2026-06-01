@@ -1051,3 +1051,52 @@ dd {
     align-self: flex-start;
   }
 }
+
+.game-shell__panel--learning {
+  border-color: rgba(250, 204, 21, 0.32);
+}
+
+.game-shell__learning-copy,
+.game-shell__learning-status {
+  margin-bottom: 10px;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.game-shell__learning-status {
+  margin: 10px 0 0;
+  border-radius: 14px;
+  padding: 10px;
+  color: #fef3c7;
+  background: rgba(250, 204, 21, 0.09);
+  font-size: 0.92rem;
+}
+
+.game-shell__learning-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.virtual-controls__button--guided,
+[data-boccia-guided-highlight="aim"] .game-shell__hints div:first-child,
+[data-boccia-guided-highlight="primary"] .game-shell__hints div:nth-child(2),
+[data-boccia-guided-highlight="primary"] .game-shell__hints div:nth-child(3),
+[data-boccia-guided-highlight="preview"] .game-shell__panel--result,
+[data-boccia-guided-highlight="preview"] .game-shell__panel--boccia {
+  outline: 3px solid rgba(250, 204, 21, 0.78);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.1);
+}
+
+.virtual-controls__button--guided {
+  border-color: rgba(250, 204, 21, 0.88);
+  color: #07111f;
+  background: #facc15;
+}
+
+@media (max-width: 640px) {
+  .game-shell__learning-actions {
+    grid-template-columns: 1fr;
+  }
+}

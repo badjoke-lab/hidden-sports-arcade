@@ -204,6 +204,21 @@ function completeBocciaTutorial(): void {
   completeMission('boccia_complete_tutorial');
 }
 
+function renderBocciaLearningPanel(): string {
+  return `
+    <section class="game-shell__panel game-shell__panel--learning" aria-labelledby="boccia-learning-title">
+      <p id="boccia-learning-title" class="game-shell__panel-label">Learn Boccia</p>
+      <p class="game-shell__learning-copy">You can read the steps, watch a demo, or try the guided tutorial.</p>
+      <div class="game-shell__learning-actions" aria-label="Boccia tutorial controls">
+        <button class="button button--secondary" type="button" data-boccia-watch-demo>Watch demo</button>
+        <button class="button button--icon" type="button" data-boccia-stop-demo disabled>Stop demo</button>
+        <button class="button button--primary" type="button" data-boccia-guided-start>Guided tutorial</button>
+      </div>
+      <p class="game-shell__learning-status" data-boccia-learning-status aria-live="polite">Ready: choose Watch demo or Guided tutorial.</p>
+    </section>
+  `;
+}
+
 function renderAudioPanel(): string {
   const settings = audioManager.getSettings();
 
@@ -391,6 +406,8 @@ export function GameShell(): string {
           </dl>
         </section>
 
+        ${renderBocciaLearningPanel()}
+
         <section class="game-shell__panel" aria-labelledby="actions-title">
           <p id="actions-title" class="game-shell__panel-label">Shell status flow</p>
           <div class="game-shell__actions" aria-label="Match placeholder controls">
@@ -448,6 +465,11 @@ export function setupGameShell(root: HTMLElement): void {
   const rulesPanel = root.querySelector<HTMLElement>('#boccia-rules');
   const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-rules-button]'));
   const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
+  const guidedStartButton = root.querySelector<HTMLButtonElement>('[data-boccia-guided-start]');
+  const watchDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-watch-demo]');
+  const stopDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-stop-demo]');
+  const learningStatus = root.querySelector<HTMLElement>('[data-boccia-learning-status]');
+  const virtualButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-virtual-input-action]'));
   const inputStateFields = {
     aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
     aimRight: root.querySelector<HTMLElement>('[data-input-state="aimRight"]'),
@@ -479,6 +501,89 @@ export function setupGameShell(root: HTMLElement): void {
   if (!isTutorialSeen('boccia')) {
     window.setTimeout(openBocciaTutorial, 0);
   }
+
+  let guidedActive = false;
+
+  function setLearningStatus(text: string): void {
+    if (learningStatus) {
+      learningStatus.textContent = text;
+    }
+  }
+
+  function setControlHighlight(highlight: 'aim' | 'primary' | 'preview' | null): void {
+    root.dataset.bocciaGuidedHighlight = highlight ?? '';
+    virtualButtons.forEach((button) => {
+      const action = button.dataset.virtualInputAction;
+      const active =
+        (highlight === 'aim' && (action === 'aim_left' || action === 'aim_right')) ||
+        (highlight === 'primary' && action === 'primary');
+      button.classList.toggle('virtual-controls__button--guided', active);
+    });
+  }
+
+  guidedStartButton?.addEventListener('click', () => {
+    audioManager.playSe('start');
+    guidedActive = true;
+    setControlHighlight('aim');
+    watchDemoButton && (watchDemoButton.disabled = false);
+    stopDemoButton && (stopDemoButton.disabled = true);
+    window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+    window.dispatchEvent(new CustomEvent('boccia:guided-start'));
+  });
+
+  watchDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    guidedActive = false;
+    setControlHighlight(null);
+    window.dispatchEvent(new CustomEvent('boccia:guided-stop'));
+    window.dispatchEvent(new CustomEvent('boccia:demo-start'));
+  });
+
+  stopDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('cancel');
+    window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+  });
+
+  window.addEventListener('boccia:guided-status', (event) => {
+    const detail = (event as CustomEvent<{ active: boolean; step: string | null; copy?: { title: string; body: string; highlight: string } | null }>).detail;
+    guidedActive = detail.active;
+
+    if (!detail.active || !detail.step || !detail.copy) {
+      setControlHighlight(null);
+      setLearningStatus('Ready: choose Watch demo or Guided tutorial.');
+      return;
+    }
+
+    if (detail.step === 'aim') {
+      setControlHighlight('aim');
+    } else if (detail.step === 'charge' || detail.step === 'release') {
+      setControlHighlight('primary');
+    } else if (detail.step === 'preview_result' || detail.step === 'complete') {
+      setControlHighlight('preview');
+    } else {
+      setControlHighlight(null);
+    }
+
+    setLearningStatus(`${detail.copy.title}: ${detail.copy.body}`);
+
+    if (detail.step === 'complete') {
+      completeBocciaTutorial();
+    }
+  });
+
+  window.addEventListener('boccia:demo-status', (event) => {
+    const detail = (event as CustomEvent<{ active: boolean; step: string }>).detail;
+    watchDemoButton && (watchDemoButton.disabled = detail.active);
+    stopDemoButton && (stopDemoButton.disabled = !detail.active);
+
+    if (!detail.active) {
+      setLearningStatus(guidedActive ? 'Guided tutorial is active.' : 'Ready: choose Watch demo or Guided tutorial.');
+      return;
+    }
+
+    const label = detail.step === 'preview' ? 'scoring preview' : detail.step;
+    setLearningStatus(`Demo playing: ${label}. Ghost graphics do not change the real score.`);
+  });
 
   rulesButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -574,6 +679,10 @@ export function setupGameShell(root: HTMLElement): void {
       }
 
       audioManager.playSe('select');
+      guidedActive = false;
+      setControlHighlight(null);
+      window.dispatchEvent(new CustomEvent('boccia:guided-stop'));
+      window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
       setMode(mode);
       if (mode === 'local_2p') {
         completeMission('boccia_try_local_2p');
@@ -599,7 +708,14 @@ export function setupGameShell(root: HTMLElement): void {
     button.addEventListener('click', () => {
       const action = button.dataset.gameShellAction;
 
+      if (guidedActive && (action === 'start' || action === 'turn' || action === 'retry' || action === 'finish')) {
+        setLearningStatus('Guided tutorial is active: use the highlighted controls to continue.');
+        audioManager.playSe('cancel');
+        return;
+      }
+
       if (action === 'start') {
+        window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
         audioManager.playSe('start');
         audioManager.playBgm('match');
         startMatch();
@@ -624,6 +740,7 @@ export function setupGameShell(root: HTMLElement): void {
       }
 
       if (action === 'retry') {
+        window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
         audioManager.playSe('select');
         retryMatch();
         window.dispatchEvent(new CustomEvent('boccia:retry'));
