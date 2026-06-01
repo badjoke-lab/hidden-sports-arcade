@@ -246,8 +246,22 @@ dd {
   font-weight: 800;
 }
 
+.game-shell__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.game-shell__stage,
+.game-shell__hud,
+.game-shell__lower-grid {
+  min-width: 0;
+}
+
 .game-shell__frame {
   overflow: hidden;
+  min-width: 0;
   border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 22px;
   background: #08111f;
@@ -265,6 +279,126 @@ dd {
   width: 100% !important;
   max-width: 720px;
   height: auto !important;
+}
+
+.game-shell__hud,
+.game-shell__lower-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.game-shell__hud {
+  align-content: start;
+}
+
+.game-shell__lower-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.game-shell__panel {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(2, 6, 23, 0.48);
+}
+
+.game-shell__panel--score {
+  border-color: rgba(250, 204, 21, 0.28);
+}
+
+.game-shell__panel--result {
+  border-color: rgba(56, 189, 248, 0.24);
+}
+
+.game-shell__panel-label {
+  margin-bottom: 8px;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.game-shell__score,
+.game-shell__status,
+.game-shell__objective,
+.game-shell__panel--result p:last-child {
+  margin-bottom: 0;
+  color: #f8fafc;
+  font-weight: 800;
+}
+
+.game-shell__score {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.game-shell__score span {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.86);
+}
+
+.game-shell__score strong {
+  display: block;
+  color: #facc15;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.game-shell__status {
+  color: #7dd3fc;
+}
+
+.game-shell__options,
+.game-shell__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.game-shell__option {
+  min-height: 44px;
+  min-width: 0;
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  padding: 9px 10px;
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.9);
+  font-weight: 900;
+}
+
+.game-shell__option--active {
+  border-color: rgba(250, 204, 21, 0.72);
+  color: #07111f;
+  background: #facc15;
+}
+
+.game-shell__option:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.75);
+  outline-offset: 3px;
+}
+
+.game-shell__hints {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.game-shell__hints div {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-shell__hints dd {
+  text-align: right;
 }
 
 .sports__grid {
@@ -427,6 +561,18 @@ dd {
     justify-content: flex-start;
   }
 
+  .game-shell__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .game-shell__hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__lower-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .game-shell__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -434,7 +580,7 @@ dd {
 
 @media (max-width: 640px) {
   .app-shell {
-    width: min(100% - 20px, 1120px);
+    width: min(1120px, calc(100% - 20px));
     padding-top: 12px;
   }
 
@@ -469,6 +615,15 @@ dd {
     width: 100%;
   }
 
+  .game-shell__hud,
+  .game-shell__lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .game-shell__actions {
+    grid-template-columns: 1fr;
+  }
+
   .sport-card__status {
     align-self: flex-start;
     white-space: normal;
@@ -488,5 +643,19 @@ dd {
   .site-header__mark {
     width: 44px;
     height: 44px;
+  }
+
+  .game-shell__options {
+    grid-template-columns: 1fr;
+  }
+
+  .game-shell__hints div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .game-shell__hints dd {
+    text-align: left;
   }
 }

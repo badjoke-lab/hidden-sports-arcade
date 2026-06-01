@@ -14,8 +14,6 @@ export class BootScene extends Phaser.Scene {
       .rectangle(width / 2, height / 2, width - 48, height - 48, 0x17243a)
       .setStrokeStyle(2, 0x38bdf8, 0.75);
 
-    this.add.circle(width / 2, height / 2 + 48, 32, 0xfacc15, 0.95);
-
     this.add
       .text(width / 2, height / 2 - 28, 'Game shell ready', {
         color: '#f8fafc',
@@ -26,7 +24,7 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height / 2 + 96, 'Phaser initialized', {
+      .text(width / 2, height / 2 + 36, 'Phaser initialized', {
         color: '#94a3b8',
         fontFamily: 'Arial, sans-serif',
         fontSize: '16px',
