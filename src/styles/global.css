@@ -401,6 +401,68 @@ dd {
   text-align: right;
 }
 
+.game-shell__panel--virtual {
+  margin-top: 16px;
+}
+
+.virtual-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.virtual-controls__button {
+  min-width: 0;
+  min-height: 56px;
+  cursor: pointer;
+  touch-action: manipulation;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 18px;
+  padding: 12px 10px;
+  color: #e0f2fe;
+  background: rgba(14, 165, 233, 0.14);
+  font-weight: 900;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.virtual-controls__button:hover,
+.virtual-controls__button:focus-visible,
+.virtual-controls__button--pressed {
+  border-color: rgba(250, 204, 21, 0.76);
+  color: #07111f;
+  background: #facc15;
+}
+
+.virtual-controls__button:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.75);
+  outline-offset: 3px;
+}
+
+.virtual-controls__button--pressed {
+  transform: translateY(1px) scale(0.98);
+}
+
+.game-shell__input-debug {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.game-shell__input-debug div {
+  min-width: 0;
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.game-shell__input-debug dd {
+  color: #7dd3fc;
+}
+
 .sports__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
@@ -569,7 +631,8 @@ dd {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .game-shell__lower-grid {
+  .game-shell__lower-grid,
+  .virtual-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -620,7 +683,8 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .game-shell__actions {
+  .game-shell__actions,
+  .virtual-controls {
     grid-template-columns: 1fr;
   }
 
@@ -645,7 +709,8 @@ dd {
     height: 44px;
   }
 
-  .game-shell__options {
+  .game-shell__options,
+  .game-shell__input-debug {
     grid-template-columns: 1fr;
   }
 
