@@ -19,6 +19,16 @@ type BocciaPhase =
   | 'scoring_preview';
 type BocciaSide = 'player' | 'opponent';
 
+type BocciaGuidedTutorialStep =
+  | 'aim'
+  | 'charge'
+  | 'release'
+  | 'wait_opponent'
+  | 'preview_result'
+  | 'complete';
+
+type BocciaDemoStep = 'idle' | 'aim' | 'charge' | 'throw' | 'opponent' | 'preview';
+
 interface BocciaBallState {
   x: number;
   y: number;
@@ -90,6 +100,42 @@ const frictionPerSixtyFpsFrame = 0.985;
 const stopSpeed = 14;
 const tieDistanceTolerance = 0.5;
 const cpuThinkingDelayMs = 700;
+
+
+const guidedStepCopy: Record<BocciaGuidedTutorialStep, { title: string; body: string; highlight: string }> = {
+  aim: {
+    title: 'Step 1 · Aim left or right',
+    body: 'Press Aim Left or Aim Right until the line points toward the jack.',
+    highlight: 'Aim buttons and aim line',
+  },
+  charge: {
+    title: 'Step 2 · Hold Primary to charge',
+    body: 'Hold Space, Enter, or the Primary touch button to fill the meter.',
+    highlight: 'Primary button and power meter',
+  },
+  release: {
+    title: 'Step 3 · Release to throw',
+    body: 'Let go of Primary when the power looks useful. The red ball will roll.',
+    highlight: 'Power meter and throw direction',
+  },
+  wait_opponent: {
+    title: 'Step 4 · Watch the reply',
+    body: 'Wait while the CPU or Player 2 sends the blue ball.',
+    highlight: 'Opponent ball lane',
+  },
+  preview_result: {
+    title: 'Step 5 · Read the preview',
+    body: 'The preview compares both balls to the jack and highlights the closest one.',
+    highlight: 'Scoring preview and closest ball line',
+  },
+  complete: {
+    title: 'Tutorial complete',
+    body: 'You have aimed, charged, thrown, and read the first scoring preview.',
+    highlight: 'Result preview',
+  },
+};
+
+const demoDurationMs = 8200;
 
 const cpuErrorByDifficulty = {
   easy: { aim: 0.35, power: 0.3 },
@@ -171,8 +217,40 @@ export class BocciaScene extends Phaser.Scene {
 
   private scoringText?: Phaser.GameObjects.Text;
 
+  private guidedStep: BocciaGuidedTutorialStep | null = null;
+
+  private guidedGraphics?: Phaser.GameObjects.Graphics;
+
+  private guidedText?: Phaser.GameObjects.Text;
+
+  private demoActive = false;
+
+  private demoElapsedMs = 0;
+
+  private demoGraphics?: Phaser.GameObjects.Graphics;
+
+  private demoText?: Phaser.GameObjects.Text;
+
   private readonly handleRetryRequest = (): void => {
+    this.stopDemo();
+    this.resetGuidedTutorial(false);
     this.resetThrowPreview();
+  };
+
+  private readonly handleGuidedStartRequest = (): void => {
+    this.startGuidedTutorial();
+  };
+
+  private readonly handleGuidedStopRequest = (): void => {
+    this.resetGuidedTutorial(true);
+  };
+
+  private readonly handleDemoStartRequest = (): void => {
+    this.startDemo();
+  };
+
+  private readonly handleDemoStopRequest = (): void => {
+    this.stopDemo();
   };
 
   constructor() {
@@ -186,9 +264,17 @@ export class BocciaScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#101827');
     this.drawSceneFoundation();
     window.addEventListener('boccia:retry', this.handleRetryRequest);
+    window.addEventListener('boccia:guided-start', this.handleGuidedStartRequest);
+    window.addEventListener('boccia:guided-stop', this.handleGuidedStopRequest);
+    window.addEventListener('boccia:demo-start', this.handleDemoStartRequest);
+    window.addEventListener('boccia:demo-stop', this.handleDemoStopRequest);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cpuThinkingEvent?.remove(false);
       window.removeEventListener('boccia:retry', this.handleRetryRequest);
+      window.removeEventListener('boccia:guided-start', this.handleGuidedStartRequest);
+      window.removeEventListener('boccia:guided-stop', this.handleGuidedStopRequest);
+      window.removeEventListener('boccia:demo-start', this.handleDemoStartRequest);
+      window.removeEventListener('boccia:demo-stop', this.handleDemoStopRequest);
     });
   }
 
@@ -203,6 +289,13 @@ export class BocciaScene extends Phaser.Scene {
       return;
     }
 
+    if (this.demoActive) {
+      this.updateDemo(delta);
+      this.previousPrimary = input.primary;
+      return;
+    }
+
+    this.updateGuidedTutorial(input);
     this.updateAim(input, deltaSeconds);
     this.updateCharge(input, deltaSeconds);
     this.updateRollingBalls(deltaSeconds);
@@ -361,6 +454,7 @@ export class BocciaScene extends Phaser.Scene {
       endX - Math.cos(arrowAngle + 0.38) * 16,
       endY - Math.sin(arrowAngle + 0.38) * 16,
     );
+    this.redrawGuidedOverlay();
   }
 
   private redrawPowerMeter(): void {
@@ -379,6 +473,7 @@ export class BocciaScene extends Phaser.Scene {
     this.powerGraphics.fillRoundedRect(x, y, powerMeter.width * this.power, powerMeter.height, 7);
     this.powerGraphics.lineStyle(2, 0xdbeafe, 0.65);
     this.powerGraphics.strokeRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
+    this.redrawGuidedOverlay();
   }
 
   private drawHudLabels(courtX: number, courtY: number): void {
@@ -431,6 +526,8 @@ export class BocciaScene extends Phaser.Scene {
     }
 
     this.activeMode = nextMode;
+    this.stopDemo();
+    this.resetGuidedTutorial(false);
     this.resetThrowPreview();
   }
 
@@ -486,6 +583,10 @@ export class BocciaScene extends Phaser.Scene {
       return;
     }
 
+    if (this.guidedStep === 'aim') {
+      this.setGuidedStep('charge');
+    }
+
     this.aimAngle = Phaser.Math.Clamp(
       this.aimAngle + aimDirection * aimRotateSpeed * deltaSeconds,
       aimLimits.min,
@@ -502,6 +603,10 @@ export class BocciaScene extends Phaser.Scene {
     if (input.primary) {
       if (!this.previousPrimary) {
         this.setPhase(this.phase === 'p2_aiming' ? 'p2_charging' : 'p1_charging');
+      }
+
+      if (this.guidedStep === 'charge') {
+        this.setGuidedStep('release');
       }
 
       this.power += this.powerDirection * chargeSpeed * deltaSeconds;
@@ -542,6 +647,10 @@ export class BocciaScene extends Phaser.Scene {
     this.aimGraphics?.clear();
     this.updateShellScoringHud();
     audioManager.playSe('throw');
+
+    if (this.guidedStep === 'release') {
+      this.setGuidedStep('wait_opponent');
+    }
 
     if (ball.side === 'player') {
       completeMission('boccia_first_throw');
@@ -797,6 +906,16 @@ export class BocciaScene extends Phaser.Scene {
     }
 
     this.drawScoringFeedback(scoredBalls);
+
+    if (this.guidedStep === 'wait_opponent') {
+      this.setGuidedStep('preview_result');
+      this.time.delayedCall(1800, () => {
+        if (this.guidedStep === 'preview_result') {
+          this.setGuidedStep('complete');
+        }
+      });
+    }
+
     this.refreshHudLabels();
     this.updateShellScoringHud();
     if (closestSide === 'player') {
@@ -844,6 +963,222 @@ export class BocciaScene extends Phaser.Scene {
     this.staticBallCircles.forEach((circle) => {
       circle.setStrokeStyle(2, balls.strokeColor, 0.7);
     });
+  }
+
+
+  private startGuidedTutorial(): void {
+    this.stopDemo();
+    this.resetThrowPreview();
+    this.setGuidedStep('aim');
+  }
+
+  private resetGuidedTutorial(announce: boolean): void {
+    if (!this.guidedStep) {
+      return;
+    }
+
+    this.guidedStep = null;
+    this.guidedGraphics?.clear();
+    this.guidedText?.setText('');
+    if (announce) {
+      this.dispatchGuidedStatus(null, false);
+    }
+  }
+
+  private setGuidedStep(step: BocciaGuidedTutorialStep): void {
+    this.guidedStep = step;
+    this.redrawGuidedOverlay();
+    this.dispatchGuidedStatus(step, true);
+
+    if (step === 'complete') {
+      completeMission('boccia_complete_tutorial');
+      window.setTimeout(() => this.resetGuidedTutorial(true), 2200);
+    }
+  }
+
+  private updateGuidedTutorial(input: InputState): void {
+    if (!this.guidedStep) {
+      return;
+    }
+
+    if (this.guidedStep === 'aim' && (input.aimLeft || input.aimRight)) {
+      this.setGuidedStep('charge');
+    }
+  }
+
+  private dispatchGuidedStatus(step: BocciaGuidedTutorialStep | null, active: boolean): void {
+    window.dispatchEvent(
+      new CustomEvent('boccia:guided-status', {
+        detail: {
+          active,
+          step,
+          copy: step ? guidedStepCopy[step] : null,
+        },
+      }),
+    );
+  }
+
+  private redrawGuidedOverlay(): void {
+    if (!this.guidedStep) {
+      return;
+    }
+
+    if (!this.guidedGraphics) {
+      this.guidedGraphics = this.add.graphics().setDepth(20);
+    }
+
+    if (!this.guidedText) {
+      this.guidedText = this.add
+        .text(this.courtBounds.x + 16, this.courtBounds.y + 12, '', {
+          color: '#fef3c7',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '13px',
+          fontStyle: '700',
+          backgroundColor: 'rgba(15, 23, 42, 0.82)',
+          padding: { x: 10, y: 8 },
+          wordWrap: { width: 300 },
+        })
+        .setDepth(21);
+    }
+
+    const copy = guidedStepCopy[this.guidedStep];
+    this.guidedGraphics.clear();
+    this.guidedGraphics.lineStyle(3, 0xfacc15, 0.92);
+
+    if (this.guidedStep === 'aim') {
+      const ball = this.getCurrentHumanBall();
+      this.guidedGraphics.strokeCircle(ball.x, ball.y, 30);
+      this.guidedGraphics.lineBetween(ball.x, ball.y, ball.x + Math.cos(this.aimAngle) * 150, ball.y + Math.sin(this.aimAngle) * 150);
+      this.guidedText.setPosition(ball.x + 18, ball.y - 70);
+    } else if (this.guidedStep === 'charge' || this.guidedStep === 'release') {
+      const { court, powerMeter } = BOCCIA_CONFIG;
+      const x = this.courtBounds.x + court.width - powerMeter.width - 22;
+      const y = this.courtBounds.y + court.height + 30;
+      this.guidedGraphics.strokeRoundedRect(x, y, powerMeter.width + 8, powerMeter.height + 16, 10);
+      this.guidedText.setPosition(Math.max(this.courtBounds.x + 12, x - 180), y - 72);
+    } else {
+      const x = this.courtBounds.x + this.courtBounds.width * 0.48;
+      const y = this.courtBounds.y + 22;
+      this.guidedGraphics.strokeRoundedRect(x, y, this.courtBounds.width * 0.48, 76, 12);
+      this.guidedText.setPosition(x + 12, y + 10);
+    }
+
+    this.guidedText.setText(`${copy.title}\n${copy.body}`);
+  }
+
+  private startDemo(): void {
+    this.resetGuidedTutorial(true);
+    this.demoActive = true;
+    this.demoElapsedMs = 0;
+    this.demoGraphics?.clear();
+    this.updateDemo(0);
+    window.dispatchEvent(new CustomEvent('boccia:demo-status', { detail: { active: true, step: 'aim' } }));
+  }
+
+  private stopDemo(): void {
+    if (!this.demoActive && !this.demoGraphics && !this.demoText) {
+      return;
+    }
+
+    this.demoActive = false;
+    this.demoElapsedMs = 0;
+    this.demoGraphics?.clear();
+    this.demoText?.setText('');
+    window.dispatchEvent(new CustomEvent('boccia:demo-status', { detail: { active: false, step: 'idle' } }));
+  }
+
+  private updateDemo(deltaMs: number): void {
+    this.demoElapsedMs = (this.demoElapsedMs + deltaMs) % demoDurationMs;
+    this.drawDemoOverlay();
+  }
+
+  private getDemoStep(progress: number): BocciaDemoStep {
+    if (progress < 0.18) return 'aim';
+    if (progress < 0.34) return 'charge';
+    if (progress < 0.58) return 'throw';
+    if (progress < 0.78) return 'opponent';
+    return 'preview';
+  }
+
+  private drawDemoOverlay(): void {
+    if (!this.demoGraphics) {
+      this.demoGraphics = this.add.graphics().setDepth(18);
+    }
+
+    if (!this.demoText) {
+      this.demoText = this.add
+        .text(this.courtBounds.x + 16, this.courtBounds.y + 14, '', {
+          color: '#dbeafe',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '13px',
+          fontStyle: '700',
+          backgroundColor: 'rgba(14, 165, 233, 0.18)',
+          padding: { x: 10, y: 8 },
+          wordWrap: { width: 310 },
+        })
+        .setDepth(19);
+    }
+
+    const progress = this.demoElapsedMs / demoDurationMs;
+    const step = this.getDemoStep(progress);
+    const angle = Phaser.Math.DegToRad(-18 + Math.sin(progress * Math.PI * 2) * 10);
+    const playerStart = { ...this.playerStart };
+    const playerEnd = {
+      x: Phaser.Math.Linear(this.playerStart.x, this.jackPosition.x, 0.86),
+      y: this.jackPosition.y + 22,
+    };
+    const opponentStart = { ...this.opponentStart };
+    const opponentEnd = {
+      x: Phaser.Math.Linear(this.opponentStart.x, this.jackPosition.x, 0.78),
+      y: this.jackPosition.y - 34,
+    };
+    const throwT = Phaser.Math.Clamp((progress - 0.34) / 0.24, 0, 1);
+    const opponentT = Phaser.Math.Clamp((progress - 0.58) / 0.2, 0, 1);
+    const powerT = Phaser.Math.Clamp((progress - 0.18) / 0.16, 0, 1);
+    const ghostX = Phaser.Math.Linear(playerStart.x, playerEnd.x, throwT);
+    const ghostY = Phaser.Math.Linear(playerStart.y, playerEnd.y, throwT);
+    const cpuX = Phaser.Math.Linear(opponentStart.x, opponentEnd.x, opponentT);
+    const cpuY = Phaser.Math.Linear(opponentStart.y, opponentEnd.y, opponentT);
+
+    this.demoGraphics.clear();
+    this.demoGraphics.lineStyle(3, 0x7dd3fc, 0.72);
+    this.demoGraphics.lineBetween(playerStart.x, playerStart.y, playerStart.x + Math.cos(angle) * aimLineLength, playerStart.y + Math.sin(angle) * aimLineLength);
+    this.demoGraphics.fillStyle(0x7dd3fc, 0.18);
+    this.demoGraphics.fillCircle(ghostX, ghostY, BOCCIA_CONFIG.balls.ballRadius + 8);
+    this.demoGraphics.lineStyle(2, 0xf87171, 0.92);
+    this.demoGraphics.strokeCircle(ghostX, ghostY, BOCCIA_CONFIG.balls.ballRadius + 4);
+    this.demoGraphics.fillStyle(0xf87171, 0.52);
+    this.demoGraphics.fillCircle(ghostX, ghostY, BOCCIA_CONFIG.balls.ballRadius);
+
+    this.demoGraphics.lineStyle(2, 0x60a5fa, 0.9);
+    this.demoGraphics.strokeCircle(cpuX, cpuY, BOCCIA_CONFIG.balls.ballRadius + 4);
+    this.demoGraphics.fillStyle(0x60a5fa, 0.46);
+    this.demoGraphics.fillCircle(cpuX, cpuY, BOCCIA_CONFIG.balls.ballRadius);
+
+    const { court, powerMeter } = BOCCIA_CONFIG;
+    const meterX = this.courtBounds.x + court.width - powerMeter.width - 18;
+    const meterY = this.courtBounds.y + court.height + 34;
+    this.demoGraphics.fillStyle(0x0f172a, 0.82);
+    this.demoGraphics.fillRoundedRect(meterX, meterY, powerMeter.width, powerMeter.height, 7);
+    this.demoGraphics.fillStyle(0xfacc15, 0.68);
+    this.demoGraphics.fillRoundedRect(meterX, meterY, powerMeter.width * (step === 'aim' ? 0.08 : powerT), powerMeter.height, 7);
+
+    if (step === 'preview') {
+      this.demoGraphics.lineStyle(2, 0xfacc15, 0.86);
+      this.demoGraphics.lineBetween(playerEnd.x, playerEnd.y, this.jackPosition.x, this.jackPosition.y);
+      this.demoGraphics.strokeRoundedRect(this.courtBounds.x + this.courtBounds.width * 0.52, this.courtBounds.y + 22, 270, 60, 12);
+    }
+
+    const textByStep: Record<BocciaDemoStep, string> = {
+      idle: '',
+      aim: 'Demo: the ghost aim line points toward the jack.',
+      charge: 'Demo: Primary fills the power meter before release.',
+      throw: 'Demo: the red ghost ball rolls without changing the real score.',
+      opponent: 'Demo: the blue reply ball shows the opponent response.',
+      preview: 'Demo: closest-to-jack lines explain the scoring preview.',
+    };
+    this.demoText.setText(textByStep[step]);
+    window.dispatchEvent(new CustomEvent('boccia:demo-status', { detail: { active: true, step } }));
   }
 
   private resetThrowPreview(): void {

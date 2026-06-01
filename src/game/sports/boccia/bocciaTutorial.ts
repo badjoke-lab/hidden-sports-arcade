@@ -8,7 +8,7 @@ export const bocciaTutorialSteps: TutorialStep[] = [
   {
     id: 'aim-at-jack',
     title: 'Aim at the jack',
-    body: 'Turn the aim line toward the small white jack on the court.',
+    body: 'You can read the steps, watch a demo, or try the guided tutorial. Turn the aim line toward the small white jack on the court.',
   },
   {
     id: 'charge-power',
