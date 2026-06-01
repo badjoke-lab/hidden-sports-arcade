@@ -199,7 +199,7 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Boccia court foundation now previews closest-ball scoring after the throw stops.</p>
+        <p class="section-heading__note">Boccia VS CPU foundation now previews scoring after one player throw and one CPU throw.</p>
       </div>
 
       <div class="game-shell__layout">
@@ -211,7 +211,7 @@ export function GameShell(): string {
 
         <aside class="game-shell__hud" aria-label="Boccia match heads-up display placeholder">
           <div class="game-shell__panel game-shell__panel--score">
-            <p class="game-shell__panel-label">Scoring preview score</p>
+            <p class="game-shell__panel-label">VS CPU preview score</p>
             <div class="game-shell__score" aria-live="polite">
               <span>Player <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
               <span>Opponent <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
@@ -266,6 +266,14 @@ export function GameShell(): string {
               <div>
                 <dt>Closest side</dt>
                 <dd data-boccia-closest-side>${BOCCIA_PLACEHOLDERS.closestSide}</dd>
+              </div>
+              <div>
+                <dt>CPU difficulty</dt>
+                <dd data-boccia-cpu-difficulty>${difficultyLabels[matchState.difficulty]}</dd>
+              </div>
+              <div>
+                <dt>CPU note</dt>
+                <dd data-boccia-cpu-note>CPU waits for the player throw.</dd>
               </div>
               <div>
                 <dt>Note</dt>
@@ -346,7 +354,7 @@ export function GameShell(): string {
         ${renderProgressPanel()}
 
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
-          <p id="result-title" class="game-shell__panel-label">Result panel placeholder</p>
+          <p id="result-title" class="game-shell__panel-label">Result preview</p>
           <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
         </section>
       </div>
@@ -363,6 +371,7 @@ export function setupGameShell(root: HTMLElement): void {
   const currentTurn = root.querySelector<HTMLElement>('[data-game-shell-current-turn]');
   const turnNumber = root.querySelector<HTMLElement>('[data-game-shell-turn-number]');
   const result = root.querySelector<HTMLElement>('[data-game-shell-result]');
+  const bocciaCpuDifficulty = root.querySelector<HTMLElement>('[data-boccia-cpu-difficulty]');
   const modeButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-mode]'));
   const difficultyButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-difficulty]'));
   const actionButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-action]'));
@@ -448,6 +457,7 @@ export function setupGameShell(root: HTMLElement): void {
     status && (status.textContent = statusLabels[state.status]);
     modeLabel && (modeLabel.textContent = modeLabels[state.mode]);
     difficultyLabel && (difficultyLabel.textContent = difficultyLabels[state.difficulty]);
+    bocciaCpuDifficulty && (bocciaCpuDifficulty.textContent = difficultyLabels[state.difficulty]);
     playerScore && (playerScore.textContent = String(state.score.player));
     opponentScore && (opponentScore.textContent = String(state.score.opponent));
     currentTurn && (currentTurn.textContent = participantLabels[state.turn.currentPlayer]);
