@@ -5,11 +5,15 @@ import { inputManager } from '../../input/inputManager';
 import type { InputState } from '../../input/types';
 import { completeMission, markSportPlayed } from '../../progress/progressManager';
 import { BOCCIA_CONFIG, BOCCIA_PLACEHOLDERS } from '../sports/boccia/bocciaConfig';
+import type { MatchMode } from '../types';
 
 type BocciaPhase =
-  | 'player_aiming'
-  | 'player_charging'
-  | 'player_rolling'
+  | 'p1_aiming'
+  | 'p1_charging'
+  | 'p1_rolling'
+  | 'p2_aiming'
+  | 'p2_charging'
+  | 'p2_rolling'
   | 'cpu_thinking'
   | 'cpu_rolling'
   | 'scoring_preview';
@@ -54,16 +58,19 @@ interface BallVisual {
 }
 
 const phaseLabels: Record<BocciaPhase, string> = {
-  player_aiming: 'Player aiming',
-  player_charging: 'Player charging',
-  player_rolling: 'Player rolling',
+  p1_aiming: 'P1 aiming',
+  p1_charging: 'P1 charging',
+  p1_rolling: 'P1 rolling',
+  p2_aiming: 'P2 aiming',
+  p2_charging: 'P2 charging',
+  p2_rolling: 'P2 rolling',
   cpu_thinking: 'CPU thinking',
   cpu_rolling: 'CPU rolling',
   scoring_preview: 'Scoring preview',
 };
 
 const sideLabels: Record<BocciaSide, string> = {
-  player: 'Player',
+  player: 'P1',
   opponent: 'Opponent',
 };
 
@@ -97,7 +104,9 @@ const cpuErrorByDifficulty = {
 export class BocciaScene extends Phaser.Scene {
   private courtBounds = new Phaser.Geom.Rectangle(0, 0, 0, 0);
 
-  private phase: BocciaPhase = 'player_aiming';
+  private phase: BocciaPhase = 'p1_aiming';
+
+  private activeMode: MatchMode = matchManager.getMatchState().mode;
 
   private aimAngle = Phaser.Math.DegToRad(-5);
 
@@ -109,7 +118,7 @@ export class BocciaScene extends Phaser.Scene {
 
   private playerStart = { x: 0, y: 0 };
 
-  private cpuStart = { x: 0, y: 0 };
+  private opponentStart = { x: 0, y: 0 };
 
   private cpuThinkingEvent?: Phaser.Time.TimerEvent;
 
@@ -131,7 +140,7 @@ export class BocciaScene extends Phaser.Scene {
     side: 'player',
   };
 
-  private cpuBall: BocciaBallState = {
+  private opponentBall: BocciaBallState = {
     x: 0,
     y: 0,
     vx: 0,
@@ -152,11 +161,11 @@ export class BocciaScene extends Phaser.Scene {
 
   private playerBallLabel?: Phaser.GameObjects.Text;
 
-  private cpuBallShadow?: Phaser.GameObjects.Arc;
+  private opponentBallShadow?: Phaser.GameObjects.Arc;
 
-  private cpuBallCircle?: Phaser.GameObjects.Arc;
+  private opponentBallCircle?: Phaser.GameObjects.Arc;
 
-  private cpuBallLabel?: Phaser.GameObjects.Text;
+  private opponentBallLabel?: Phaser.GameObjects.Text;
 
   private phaseText?: Phaser.GameObjects.Text;
 
@@ -191,6 +200,7 @@ export class BocciaScene extends Phaser.Scene {
     const input = inputManager.getInputState();
     const deltaSeconds = Math.min(delta / 1000, 0.05);
 
+    this.syncModeChange();
     this.updateAim(input, deltaSeconds);
     this.updateCharge(input, deltaSeconds);
     this.updateRollingBalls(deltaSeconds);
@@ -208,7 +218,7 @@ export class BocciaScene extends Phaser.Scene {
       x: courtX + BOCCIA_CONFIG.throwingArea.width - 36,
       y: courtY + BOCCIA_CONFIG.court.height / 2,
     };
-    this.cpuStart = {
+    this.opponentStart = {
       x: courtX + BOCCIA_CONFIG.throwingArea.width - 36,
       y: courtY + BOCCIA_CONFIG.court.height / 2 + 34,
     };
@@ -219,8 +229,8 @@ export class BocciaScene extends Phaser.Scene {
       isThrown: false,
       side: 'player',
     };
-    this.cpuBall = {
-      ...this.cpuStart,
+    this.opponentBall = {
+      ...this.opponentStart,
       vx: 0,
       vy: 0,
       isThrown: false,
@@ -228,7 +238,7 @@ export class BocciaScene extends Phaser.Scene {
     };
 
     this.add
-      .text(width / 2, 26, 'Boccia VS CPU Preview', {
+      .text(width / 2, 26, 'Boccia Match Preview', {
         color: '#f8fafc',
         fontFamily: 'Arial, sans-serif',
         fontSize: '24px',
@@ -237,7 +247,7 @@ export class BocciaScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 52, `${BOCCIA_PLACEHOLDERS.objective} Player throws once, then CPU throws once for preview scoring.`, {
+      .text(width / 2, 52, `${BOCCIA_PLACEHOLDERS.objective} VS CPU or Local 2P throws once each for preview scoring.`, {
         color: '#bae6fd',
         fontFamily: 'Arial, sans-serif',
         fontSize: '13px',
@@ -316,22 +326,23 @@ export class BocciaScene extends Phaser.Scene {
       .setStrokeStyle(2, balls.strokeColor, 0.9);
     this.playerBallLabel = this.addLabel('P1', this.playerBall.x, this.playerBall.y + balls.ballRadius + 13, '#e5edf8');
 
-    this.cpuBallShadow = this.add.circle(this.cpuBall.x, this.cpuBall.y, balls.ballRadius + 2, balls.strokeColor, 0.24);
-    this.cpuBallCircle = this.add
-      .circle(this.cpuBall.x, this.cpuBall.y, balls.ballRadius, balls.opponentColor, 1)
+    this.opponentBallShadow = this.add.circle(this.opponentBall.x, this.opponentBall.y, balls.ballRadius + 2, balls.strokeColor, 0.24);
+    this.opponentBallCircle = this.add
+      .circle(this.opponentBall.x, this.opponentBall.y, balls.ballRadius, balls.opponentColor, 1)
       .setStrokeStyle(2, balls.strokeColor, 0.9);
-    this.cpuBallLabel = this.addLabel('CPU', this.cpuBall.x, this.cpuBall.y + balls.ballRadius + 13, '#e5edf8');
+    this.opponentBallLabel = this.addLabel(this.getOpponentBallLabel(), this.opponentBall.x, this.opponentBall.y + balls.ballRadius + 13, '#e5edf8');
   }
 
   private redrawAimLine(): void {
-    if (!this.aimGraphics || (this.phase !== 'player_aiming' && this.phase !== 'player_charging')) {
+    if (!this.aimGraphics || !this.isHumanAimingPhase()) {
       this.aimGraphics?.clear();
       return;
     }
 
     const { aimLine } = BOCCIA_CONFIG;
-    const startX = this.playerBall.x;
-    const startY = this.playerBall.y;
+    const aimingBall = this.getCurrentHumanBall();
+    const startX = aimingBall.x;
+    const startY = aimingBall.y;
     const endX = startX + Math.cos(this.aimAngle) * aimLineLength;
     const endY = startY + Math.sin(this.aimAngle) * aimLineLength;
     const arrowAngle = this.aimAngle;
@@ -362,7 +373,7 @@ export class BocciaScene extends Phaser.Scene {
     this.powerGraphics.clear();
     this.powerGraphics.fillStyle(powerMeter.trackColor, 1);
     this.powerGraphics.fillRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
-    this.powerGraphics.fillStyle(powerMeter.fillColor, this.phase === 'player_charging' ? 0.95 : 0.62);
+    this.powerGraphics.fillStyle(powerMeter.fillColor, this.isHumanChargingPhase() ? 0.95 : 0.62);
     this.powerGraphics.fillRoundedRect(x, y, powerMeter.width * this.power, powerMeter.height, 7);
     this.powerGraphics.lineStyle(2, 0xdbeafe, 0.65);
     this.powerGraphics.strokeRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
@@ -410,8 +421,56 @@ export class BocciaScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
+  private syncModeChange(): void {
+    const nextMode = matchManager.getMatchState().mode;
+
+    if (nextMode === this.activeMode) {
+      return;
+    }
+
+    this.activeMode = nextMode;
+    this.resetThrowPreview();
+  }
+
+  private isLocal2P(): boolean {
+    return this.activeMode === 'local_2p';
+  }
+
+  private isHumanAimingPhase(): boolean {
+    return (
+      this.phase === 'p1_aiming' ||
+      this.phase === 'p1_charging' ||
+      this.phase === 'p2_aiming' ||
+      this.phase === 'p2_charging'
+    );
+  }
+
+  private isHumanChargingPhase(): boolean {
+    return this.phase === 'p1_charging' || this.phase === 'p2_charging';
+  }
+
+  private getCurrentHumanBall(): BocciaBallState {
+    return this.phase === 'p2_aiming' || this.phase === 'p2_charging' ? this.opponentBall : this.playerBall;
+  }
+
+  private getOpponentBallLabel(): string {
+    return this.isLocal2P() ? 'P2' : 'CPU';
+  }
+
+  private getOpponentSideLabel(): string {
+    return this.isLocal2P() ? 'P2' : 'Opponent';
+  }
+
+  private getSideLabel(side: BocciaSide): string {
+    return side === 'player' ? sideLabels.player : this.getOpponentSideLabel();
+  }
+
+  private getModeLabel(): string {
+    return this.isLocal2P() ? 'Local 2P' : 'VS CPU';
+  }
+
   private updateAim(input: InputState, deltaSeconds: number): void {
-    if (this.phase !== 'player_aiming' && this.phase !== 'player_charging') {
+    if (!this.isHumanAimingPhase()) {
       return;
     }
 
@@ -430,13 +489,13 @@ export class BocciaScene extends Phaser.Scene {
   }
 
   private updateCharge(input: InputState, deltaSeconds: number): void {
-    if (this.phase !== 'player_aiming' && this.phase !== 'player_charging') {
+    if (!this.isHumanAimingPhase()) {
       return;
     }
 
     if (input.primary) {
       if (!this.previousPrimary) {
-        this.setPhase('player_charging');
+        this.setPhase(this.phase === 'p2_aiming' ? 'p2_charging' : 'p1_charging');
       }
 
       this.power += this.powerDirection * chargeSpeed * deltaSeconds;
@@ -456,7 +515,7 @@ export class BocciaScene extends Phaser.Scene {
       return;
     }
 
-    if (this.previousPrimary && this.phase === 'player_charging') {
+    if (this.previousPrimary && this.isHumanChargingPhase()) {
       this.throwBall();
     }
   }
@@ -468,34 +527,40 @@ export class BocciaScene extends Phaser.Scene {
     this.scoringPreview = null;
     this.scoringGraphics?.clear();
     this.resetBallHighlight();
-    this.playerBall.vx = Math.cos(this.aimAngle) * speed;
-    this.playerBall.vy = Math.sin(this.aimAngle) * speed;
-    this.playerBall.isThrown = true;
-    this.setPhase('player_rolling');
+    const ball = this.getCurrentHumanBall();
+
+    ball.vx = Math.cos(this.aimAngle) * speed;
+    ball.vy = Math.sin(this.aimAngle) * speed;
+    ball.isThrown = true;
+    this.setPhase(ball.side === 'opponent' ? 'p2_rolling' : 'p1_rolling');
     this.aimGraphics?.clear();
     this.updateShellScoringHud();
     audioManager.playSe('throw');
   }
 
   private updateRollingBalls(deltaSeconds: number): void {
-    if (this.phase === 'player_rolling') {
+    if (this.phase === 'p1_rolling') {
       this.updateRollingBall(this.playerBall, deltaSeconds);
       this.syncPlayerBallVisuals();
 
       if (this.isBallStopped(this.playerBall)) {
         this.stopBall(this.playerBall);
         this.syncPlayerBallVisuals();
-        this.startCpuThinking();
+        if (this.isLocal2P()) {
+          this.startP2Turn();
+        } else {
+          this.startCpuThinking();
+        }
       }
     }
 
-    if (this.phase === 'cpu_rolling') {
-      this.updateRollingBall(this.cpuBall, deltaSeconds);
-      this.syncCpuBallVisuals();
+    if (this.phase === 'cpu_rolling' || this.phase === 'p2_rolling') {
+      this.updateRollingBall(this.opponentBall, deltaSeconds);
+      this.syncOpponentBallVisuals();
 
-      if (this.isBallStopped(this.cpuBall)) {
-        this.stopBall(this.cpuBall);
-        this.syncCpuBallVisuals();
+      if (this.isBallStopped(this.opponentBall)) {
+        this.stopBall(this.opponentBall);
+        this.syncOpponentBallVisuals();
         this.setPhase('scoring_preview');
         this.calculateScoringPreview();
       }
@@ -543,10 +608,21 @@ export class BocciaScene extends Phaser.Scene {
     this.playerBallLabel?.setPosition(this.playerBall.x, this.playerBall.y + BOCCIA_CONFIG.balls.ballRadius + 13);
   }
 
-  private syncCpuBallVisuals(): void {
-    this.cpuBallShadow?.setPosition(this.cpuBall.x, this.cpuBall.y);
-    this.cpuBallCircle?.setPosition(this.cpuBall.x, this.cpuBall.y);
-    this.cpuBallLabel?.setPosition(this.cpuBall.x, this.cpuBall.y + BOCCIA_CONFIG.balls.ballRadius + 13);
+  private syncOpponentBallVisuals(): void {
+    this.opponentBallShadow?.setPosition(this.opponentBall.x, this.opponentBall.y);
+    this.opponentBallCircle?.setPosition(this.opponentBall.x, this.opponentBall.y);
+    this.opponentBallLabel?.setPosition(this.opponentBall.x, this.opponentBall.y + BOCCIA_CONFIG.balls.ballRadius + 13);
+  }
+
+  private startP2Turn(): void {
+    this.cpuNote = 'Local 2P: P2 uses the same controls for the blue ball.';
+    this.aimAngle = Phaser.Math.DegToRad(-5);
+    this.power = 0;
+    this.powerDirection = 1;
+    this.previousPrimary = false;
+    this.setPhase('p2_aiming');
+    this.redrawAimLine();
+    this.redrawPowerMeter();
   }
 
   private startCpuThinking(): void {
@@ -568,8 +644,8 @@ export class BocciaScene extends Phaser.Scene {
       x: baseTarget.x + Phaser.Math.FloatBetween(-1, 1) * error.aim * 120,
       y: baseTarget.y + Phaser.Math.FloatBetween(-1, 1) * error.aim * 120,
     };
-    const dx = target.x - this.cpuBall.x;
-    const dy = target.y - this.cpuBall.y;
+    const dx = target.x - this.opponentBall.x;
+    const dy = target.y - this.opponentBall.y;
     const angle = Math.atan2(dy, dx);
     const distance = Math.hypot(dx, dy);
     const estimatedTravelScale = 1.05;
@@ -580,9 +656,9 @@ export class BocciaScene extends Phaser.Scene {
       maxThrowSpeed,
     );
 
-    this.cpuBall.vx = Math.cos(angle) * speed;
-    this.cpuBall.vy = Math.sin(angle) * speed;
-    this.cpuBall.isThrown = true;
+    this.opponentBall.vx = Math.cos(angle) * speed;
+    this.opponentBall.vy = Math.sin(angle) * speed;
+    this.opponentBall.isThrown = true;
     this.cpuNote = `${difficultyLabels[difficulty]} CPU aimed near the jack.`;
     this.setPhase('cpu_rolling');
     audioManager.playSe('throw');
@@ -612,6 +688,15 @@ export class BocciaScene extends Phaser.Scene {
     }
 
     this.phase = phase;
+
+    if (phase === 'p1_aiming' || phase === 'p1_charging' || phase === 'p1_rolling') {
+      matchManager.setTurn('player', 1);
+    }
+
+    if (phase === 'p2_aiming' || phase === 'p2_charging' || phase === 'p2_rolling' || phase === 'cpu_thinking' || phase === 'cpu_rolling') {
+      matchManager.setTurn('opponent', 2);
+    }
+
     this.refreshHudLabels();
     this.redrawPowerMeter();
     this.updateShellScoringHud();
@@ -629,12 +714,12 @@ export class BocciaScene extends Phaser.Scene {
       });
     }
 
-    if (this.cpuBall.isThrown) {
+    if (this.opponentBall.isThrown) {
       scoringBalls.push({
-        id: 'cpu-1',
+        id: this.isLocal2P() ? 'p2-1' : 'cpu-1',
         side: 'opponent',
-        x: this.cpuBall.x,
-        y: this.cpuBall.y,
+        x: this.opponentBall.x,
+        y: this.opponentBall.y,
       });
     }
 
@@ -672,12 +757,12 @@ export class BocciaScene extends Phaser.Scene {
       playerScore = scoredBalls.filter(
         (ball) => ball.side === 'player' && ball.distance < closestOpponentDistance - tieDistanceTolerance,
       ).length;
-      label = `Player +${playerScore}`;
+      label = `P1 +${playerScore}`;
     } else {
       opponentScore = scoredBalls.filter(
         (ball) => ball.side === 'opponent' && ball.distance < closestPlayerDistance - tieDistanceTolerance,
       ).length;
-      label = `Opponent +${opponentScore}`;
+      label = `${this.getOpponentSideLabel()} +${opponentScore}`;
     }
 
     this.scoringPreview = {
@@ -723,8 +808,8 @@ export class BocciaScene extends Phaser.Scene {
       return;
     }
 
-    if (closestBall.id === 'cpu-1') {
-      this.cpuBallCircle?.setStrokeStyle(4, highlightColor, 1);
+    if (closestBall.id === 'cpu-1' || closestBall.id === 'p2-1') {
+      this.opponentBallCircle?.setStrokeStyle(4, highlightColor, 1);
       return;
     }
 
@@ -735,21 +820,22 @@ export class BocciaScene extends Phaser.Scene {
     const { balls } = BOCCIA_CONFIG;
 
     this.playerBallCircle?.setStrokeStyle(2, balls.strokeColor, 0.9);
-    this.cpuBallCircle?.setStrokeStyle(2, balls.strokeColor, 0.9);
+    this.opponentBallCircle?.setStrokeStyle(2, balls.strokeColor, 0.9);
     this.staticBallCircles.forEach((circle) => {
       circle.setStrokeStyle(2, balls.strokeColor, 0.7);
     });
   }
 
   private resetThrowPreview(): void {
+    this.activeMode = matchManager.getMatchState().mode;
     this.cpuThinkingEvent?.remove(false);
     this.cpuThinkingEvent = undefined;
-    this.phase = 'player_aiming';
+    this.phase = 'p1_aiming';
     this.aimAngle = Phaser.Math.DegToRad(-5);
     this.power = 0;
     this.powerDirection = 1;
     this.previousPrimary = false;
-    this.cpuNote = 'CPU waits for the player throw.';
+    this.cpuNote = this.isLocal2P() ? 'Local 2P waits for P1 to throw.' : 'CPU waits for the player throw.';
     this.playerBall = {
       ...this.playerStart,
       vx: 0,
@@ -757,8 +843,8 @@ export class BocciaScene extends Phaser.Scene {
       isThrown: false,
       side: 'player',
     };
-    this.cpuBall = {
-      ...this.cpuStart,
+    this.opponentBall = {
+      ...this.opponentStart,
       vx: 0,
       vy: 0,
       isThrown: false,
@@ -768,7 +854,9 @@ export class BocciaScene extends Phaser.Scene {
     this.scoringGraphics?.clear();
     this.resetBallHighlight();
     this.syncPlayerBallVisuals();
-    this.syncCpuBallVisuals();
+    this.syncOpponentBallVisuals();
+    this.opponentBallLabel?.setText(this.getOpponentBallLabel());
+    matchManager.setTurn('player', 1);
     matchManager.setScore(0, 0);
     matchManager.setResultPreview(this.getResultPreviewText());
     this.redrawAimLine();
@@ -798,16 +886,22 @@ export class BocciaScene extends Phaser.Scene {
   }
 
   private getHintText(): string {
-    if (this.phase === 'player_aiming') {
-      return 'A/D or arrows aim • Hold Space/Enter or Primary to charge';
+    if (this.phase === 'p1_aiming' || this.phase === 'p2_aiming') {
+      const playerLabel = this.phase === 'p2_aiming' ? 'P2' : 'P1';
+      return `${playerLabel}: A/D or arrows aim • Hold Space/Enter or Primary to charge`;
     }
 
-    if (this.phase === 'player_charging') {
-      return 'Release Space/Enter or Primary to throw';
+    if (this.phase === 'p1_charging' || this.phase === 'p2_charging') {
+      const playerLabel = this.phase === 'p2_charging' ? 'P2' : 'P1';
+      return `${playerLabel}: release Space/Enter or Primary to throw`;
     }
 
-    if (this.phase === 'player_rolling') {
-      return 'Player ball is rolling with friction';
+    if (this.phase === 'p1_rolling') {
+      return 'P1 ball is rolling with friction';
+    }
+
+    if (this.phase === 'p2_rolling') {
+      return 'P2 ball is rolling with the same friction';
     }
 
     if (this.phase === 'cpu_thinking') {
@@ -818,37 +912,58 @@ export class BocciaScene extends Phaser.Scene {
       return 'CPU ball is rolling with the same friction';
     }
 
-    return 'Scoring preview compares the thrown player ball against the thrown CPU ball';
+    return this.isLocal2P()
+      ? 'Scoring preview compares the thrown P1 ball against the thrown P2 ball'
+      : 'Scoring preview compares the thrown P1 ball against the thrown CPU ball';
   }
 
   private getScoringText(): string {
     if (!this.scoringPreview) {
       const difficulty = difficultyLabels[matchManager.getMatchState().difficulty];
-      return `Scoring preview: waiting for player + CPU throws\nClosest side: —\nCPU difficulty: ${difficulty}\nCPU note: ${this.cpuNote}`;
+
+      if (this.isLocal2P()) {
+        return `Mode: ${this.getModeLabel()}
+Scoring preview: waiting for P1 + P2 throws
+Closest side: —
+Turn note: ${this.cpuNote}`;
+      }
+
+      return `Mode: ${this.getModeLabel()}
+Scoring preview: waiting for P1 + CPU throws
+Closest side: —
+CPU difficulty: ${difficulty}
+CPU note: ${this.cpuNote}`;
     }
 
     if (this.scoringPreview.closestSide === 'draw') {
-      return `Closest: Draw\nPreview score: no score preview\nDistance to jack: tied\nCPU note: ${this.cpuNote}`;
+      return `Closest: Draw
+Preview score: no score preview
+Distance to jack: tied
+${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`;
     }
 
     return [
-      `Closest: ${sideLabels[this.scoringPreview.closestSide]} ball`,
+      `Closest: ${this.getSideLabel(this.scoringPreview.closestSide)} ball`,
       `Preview score: ${this.scoringPreview.label}`,
       `Distance to jack: ${Math.round(this.scoringPreview.closestDistance ?? 0)} px`,
-      `CPU note: ${this.cpuNote}`,
+      `${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`,
     ].join('\n');
   }
 
   private getResultPreviewText(): string {
     if (!this.scoringPreview) {
-      return 'Boccia VS CPU preview waits for player throw, CPU throw, then scoring preview.';
+      return this.isLocal2P()
+        ? 'Boccia Local 2P preview waits for P1 throw, P2 throw, then scoring preview.'
+        : 'Boccia VS CPU preview waits for P1 throw, CPU throw, then scoring preview.';
     }
 
     if (this.scoringPreview.closestSide === 'draw') {
-      return 'Scoring preview: draw / no score after one player throw and one CPU throw.';
+      return this.isLocal2P()
+        ? 'Scoring preview: draw / no score after one P1 throw and one P2 throw.'
+        : 'Scoring preview: draw / no score after one P1 throw and one CPU throw.';
     }
 
-    return `Scoring preview: ${this.scoringPreview.label}. Closest side: ${sideLabels[this.scoringPreview.closestSide]}. Full round flow starts in a later PR; Local 2P is not implemented here.`;
+    return `Scoring preview: ${this.scoringPreview.label}. Closest side: ${this.getSideLabel(this.scoringPreview.closestSide)}. Full round flow and official Boccia rules are saved for a later PR.`;
   }
 
   private updateShellScoringHud(): void {
@@ -863,7 +978,7 @@ export class BocciaScene extends Phaser.Scene {
     cpuNote && (cpuNote.textContent = this.cpuNote);
 
     if (!this.scoringPreview) {
-      preview && (preview.textContent = 'Waiting for player + CPU throws');
+      preview && (preview.textContent = this.isLocal2P() ? 'Waiting for P1 + P2 throws' : 'Waiting for P1 + CPU throws');
       closest && (closest.textContent = '—');
       return;
     }
@@ -871,6 +986,6 @@ export class BocciaScene extends Phaser.Scene {
     preview && (preview.textContent = this.scoringPreview.label);
     closest &&
       (closest.textContent =
-        this.scoringPreview.closestSide === 'draw' ? 'Draw' : sideLabels[this.scoringPreview.closestSide]);
+        this.scoringPreview.closestSide === 'draw' ? 'Draw' : this.getSideLabel(this.scoringPreview.closestSide));
   }
 }
