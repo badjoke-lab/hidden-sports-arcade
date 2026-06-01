@@ -3,12 +3,14 @@ import type { ProgressState } from './types';
 type ProgressListener = (state: ProgressState) => void;
 type ProgressArrayKey = 'favorites' | 'recentSports';
 type ProgressRecordKey = 'tutorialSeen' | 'missions';
+type ProgressStringKey = 'latestMissionId';
 
 const storageKeys = {
   favorites: 'hsa_favorites',
   recentSports: 'hsa_recent_sports',
   tutorialSeen: 'hsa_tutorial_seen',
   missions: 'hsa_missions',
+  latestMissionId: 'hsa_latest_mission',
 } as const satisfies Record<keyof ProgressState, string>;
 
 const maxRecentSports = 6;
@@ -20,6 +22,7 @@ function defaultProgressState(): ProgressState {
     recentSports: [],
     tutorialSeen: {},
     missions: {},
+    latestMissionId: null,
   };
 }
 
@@ -70,6 +73,23 @@ function readStringArray(key: string): string[] {
   return parsed.filter((value): value is string => typeof value === 'string').map(normalizeId).filter(Boolean);
 }
 
+
+function readString(key: string): string | null {
+  const storage = getLocalStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  const stored = storage.getItem(key);
+
+  if (stored === null) {
+    return null;
+  }
+
+  return normalizeId(stored) || null;
+}
+
 function readBooleanRecord(key: string): Record<string, boolean> {
   const parsed = readJson(key);
 
@@ -88,6 +108,15 @@ function readBooleanRecord(key: string): Record<string, boolean> {
   }, {});
 }
 
+
+function normalizeMissionRecord(missions: Record<string, boolean>): Record<string, boolean> {
+  if (missions.boccia_tutorial_complete && !missions.boccia_complete_tutorial) {
+    return { ...missions, boccia_complete_tutorial: true };
+  }
+
+  return missions;
+}
+
 function writeJson(key: string, value: unknown): void {
   const storage = getLocalStorage();
 
@@ -97,6 +126,25 @@ function writeJson(key: string, value: unknown): void {
 
   try {
     storage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota or privacy-mode write failures; runtime state still updates.
+  }
+}
+
+
+function writeString(key: string, value: string | null): void {
+  const storage = getLocalStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    if (value) {
+      storage.setItem(key, value);
+    } else {
+      storage.removeItem(key);
+    }
   } catch {
     // Ignore storage quota or privacy-mode write failures; runtime state still updates.
   }
@@ -113,11 +161,14 @@ function removeProgressKeys(): void {
 }
 
 function loadProgressState(): ProgressState {
+  const missions = normalizeMissionRecord(readBooleanRecord(storageKeys.missions));
+
   return {
     favorites: readStringArray(storageKeys.favorites),
     recentSports: readStringArray(storageKeys.recentSports),
     tutorialSeen: readBooleanRecord(storageKeys.tutorialSeen),
-    missions: readBooleanRecord(storageKeys.missions),
+    missions,
+    latestMissionId: readString(storageKeys.latestMissionId) ?? (missions.boccia_complete_tutorial ? 'boccia_complete_tutorial' : null),
   };
 }
 
@@ -129,6 +180,7 @@ function cloneState(): ProgressState {
     recentSports: [...state.recentSports],
     tutorialSeen: { ...state.tutorialSeen },
     missions: { ...state.missions },
+    latestMissionId: state.latestMissionId,
   };
 }
 
@@ -138,6 +190,10 @@ function persistArray(key: ProgressArrayKey): void {
 
 function persistRecord(key: ProgressRecordKey): void {
   writeJson(storageKeys[key], state[key]);
+}
+
+function persistString(key: ProgressStringKey): void {
+  writeString(storageKeys[key], state[key]);
 }
 
 function notify(): void {
@@ -213,12 +269,18 @@ export function isTutorialSeen(sportId: string): boolean {
 export function completeMission(missionId: string): void {
   const normalizedId = normalizeId(missionId);
 
-  if (!normalizedId || state.missions[normalizedId]) {
+  if (!normalizedId) {
+    return;
+  }
+
+  if (state.missions[normalizedId]) {
     return;
   }
 
   state.missions = { ...state.missions, [normalizedId]: true };
+  state.latestMissionId = normalizedId;
   persistRecord('missions');
+  persistString('latestMissionId');
   notify();
 }
 

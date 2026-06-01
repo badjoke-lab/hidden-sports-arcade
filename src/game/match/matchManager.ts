@@ -7,13 +7,13 @@ const defaultObjective = 'Place your ball closest to the jack.';
 function previewReasonForMode(mode: MatchMode): string {
   return mode === 'local_2p'
     ? 'Boccia Local 2P preview waits for P1 throw, P2 throw, then scoring preview.'
-    : 'Boccia VS CPU preview waits for P1 throw, CPU throw, then scoring preview.';
+    : 'Boccia VS CPU preview waits for Player throw, CPU throw, then scoring preview.';
 }
 
 function startReasonForMode(mode: MatchMode): string {
   return mode === 'local_2p'
     ? 'P1 throws one ball, then P2 uses the same controls to throw one ball before scoring preview.'
-    : 'Aim, charge, and throw one ball. The CPU will throw one ball before scoring preview.';
+    : 'Aim, charge, and throw one Player ball. The CPU will throw one ball before scoring preview.';
 }
 
 const createInitialMatchState = (): MatchState => ({
@@ -114,7 +114,7 @@ export function finishMatchPlaceholder(): MatchState {
     status: 'finished',
     result: {
       winner: null,
-      reason: 'Finished placeholder. Real results and scoring arrive in a later PR.',
+      reason: 'Preview finished. Full match results and official scoring arrive in a later PR.',
     },
   }));
 }

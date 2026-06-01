@@ -46,7 +46,7 @@ const statusLabels: Record<MatchStatus, string> = {
   ready: 'Scoring preview ready',
   playing: 'Scoring preview active',
   paused: 'Paused',
-  finished: 'Finished placeholder',
+  finished: 'Preview complete',
 };
 
 function participantLabel(mode: MatchMode, participant: MatchParticipant): string {
@@ -136,6 +136,12 @@ function completedMissionCount(progress: ProgressState): number {
   return missions.filter((mission) => progress.missions[mission.id]).length;
 }
 
+function latestMissionTitle(progress: ProgressState): string {
+  const latestMission = missions.find((mission) => mission.id === progress.latestMissionId);
+
+  return latestMission?.title ?? 'None yet';
+}
+
 function renderProgressPanel(): string {
   const progress = getProgressState();
 
@@ -153,7 +159,11 @@ function renderProgressPanel(): string {
         </div>
         <div>
           <dt>Missions</dt>
-          <dd><span data-progress-missions-completed>${completedMissionCount(progress)}</span> / <span data-progress-missions-total>${missions.length}</span></dd>
+          <dd><span data-progress-missions-completed>${completedMissionCount(progress)}</span> / <span data-progress-missions-total>${missions.length}</span> complete</dd>
+        </div>
+        <div>
+          <dt>Latest</dt>
+          <dd data-progress-latest-mission>${latestMissionTitle(progress)}</dd>
         </div>
       </dl>
       <button class="button button--icon game-shell__reset-progress" type="button" data-progress-reset>Reset progress</button>
@@ -191,7 +201,7 @@ function renderBocciaRulesPanel(): string {
 
 function completeBocciaTutorial(): void {
   markTutorialSeen('boccia');
-  completeMission('boccia_tutorial_complete');
+  completeMission('boccia_complete_tutorial');
 }
 
 function renderAudioPanel(): string {
@@ -259,7 +269,7 @@ export function GameShell(): string {
             <p class="game-shell__panel-label">Boccia preview score</p>
             <div class="game-shell__score" aria-live="polite">
               <span>P1 <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
-              <span><span data-game-shell-opponent-score-label>${matchState.mode === 'local_2p' ? 'P2' : 'Opponent'}</span> <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
+              <span><span data-game-shell-opponent-score-label>${matchState.mode === 'local_2p' ? 'P2' : 'CPU'}</span> <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
             </div>
           </div>
 
@@ -309,7 +319,7 @@ export function GameShell(): string {
                 <dd data-boccia-scoring-preview>${BOCCIA_PLACEHOLDERS.scoringPreview}</dd>
               </div>
               <div>
-                <dt>Closest side</dt>
+                <dt>Closest ball</dt>
                 <dd data-boccia-closest-side>${BOCCIA_PLACEHOLDERS.closestSide}</dd>
               </div>
               <div>
@@ -402,7 +412,7 @@ export function GameShell(): string {
 
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result preview</p>
-          <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
+          <p>Preview result: <span data-game-shell-result>${resultText(matchState)}</span></p>
         </section>
       </div>
     </section>
@@ -433,6 +443,7 @@ export function setupGameShell(root: HTMLElement): void {
   const progressFavorites = root.querySelector<HTMLElement>('[data-progress-favorites]');
   const progressMissionsCompleted = root.querySelector<HTMLElement>('[data-progress-missions-completed]');
   const progressRecent = root.querySelector<HTMLElement>('[data-progress-recent]');
+  const progressLatestMission = root.querySelector<HTMLElement>('[data-progress-latest-mission]');
   const progressResetButton = root.querySelector<HTMLButtonElement>('[data-progress-reset]');
   const rulesPanel = root.querySelector<HTMLElement>('#boccia-rules');
   const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-rules-button]'));
@@ -451,6 +462,10 @@ export function setupGameShell(root: HTMLElement): void {
   markSportPlayed('boccia');
   completeMission('boccia_shell_visit');
   completeMission('first_play');
+
+  if (isTutorialSeen('boccia')) {
+    completeMission('boccia_complete_tutorial');
+  }
 
   function openBocciaTutorial(): void {
     showTutorialOverlay({
@@ -484,6 +499,7 @@ export function setupGameShell(root: HTMLElement): void {
     progressFavorites && (progressFavorites.textContent = String(progress.favorites.length));
     progressRecent && (progressRecent.textContent = sportLabel(progress.recentSports[0]));
     progressMissionsCompleted && (progressMissionsCompleted.textContent = String(completedMissionCount(progress)));
+    progressLatestMission && (progressLatestMission.textContent = latestMissionTitle(progress));
   });
 
   audioManager.subscribe((settings) => {
@@ -539,7 +555,7 @@ export function setupGameShell(root: HTMLElement): void {
     bocciaCpuDifficulty && (bocciaCpuDifficulty.textContent = difficultyLabels[state.difficulty]);
     playerScore && (playerScore.textContent = String(state.score.player));
     opponentScore && (opponentScore.textContent = String(state.score.opponent));
-    opponentScoreLabel && (opponentScoreLabel.textContent = state.mode === 'local_2p' ? 'P2' : 'Opponent');
+    opponentScoreLabel && (opponentScoreLabel.textContent = state.mode === 'local_2p' ? 'P2' : 'CPU');
     currentTurn && (currentTurn.textContent = participantLabel(state.mode, state.turn.currentPlayer));
     turnNumber && (turnNumber.textContent = String(state.turn.turnNumber));
     result && (result.textContent = resultText(state));
@@ -559,6 +575,9 @@ export function setupGameShell(root: HTMLElement): void {
 
       audioManager.playSe('select');
       setMode(mode);
+      if (mode === 'local_2p') {
+        completeMission('boccia_try_local_2p');
+      }
       window.dispatchEvent(new CustomEvent('boccia:retry'));
     });
   });

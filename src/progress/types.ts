@@ -3,6 +3,7 @@ export interface ProgressState {
   recentSports: string[];
   tutorialSeen: Record<string, boolean>;
   missions: Record<string, boolean>;
+  latestMissionId: string | null;
 }
 
 export interface MissionDefinition {

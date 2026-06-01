@@ -69,10 +69,6 @@ const phaseLabels: Record<BocciaPhase, string> = {
   scoring_preview: 'Scoring preview',
 };
 
-const sideLabels: Record<BocciaSide, string> = {
-  player: 'P1',
-  opponent: 'Opponent',
-};
 
 const difficultyLabels = {
   easy: 'Easy',
@@ -464,11 +460,15 @@ export class BocciaScene extends Phaser.Scene {
   }
 
   private getOpponentSideLabel(): string {
-    return this.isLocal2P() ? 'P2' : 'Opponent';
+    return this.isLocal2P() ? 'P2' : 'CPU';
+  }
+
+  private getPlayerSideLabel(): string {
+    return this.isLocal2P() ? 'P1' : 'Player';
   }
 
   private getSideLabel(side: BocciaSide): string {
-    return side === 'player' ? sideLabels.player : this.getOpponentSideLabel();
+    return side === 'player' ? this.getPlayerSideLabel() : this.getOpponentSideLabel();
   }
 
   private getModeLabel(): string {
@@ -542,6 +542,10 @@ export class BocciaScene extends Phaser.Scene {
     this.aimGraphics?.clear();
     this.updateShellScoringHud();
     audioManager.playSe('throw');
+
+    if (ball.side === 'player') {
+      completeMission('boccia_first_throw');
+    }
   }
 
   private updateRollingBalls(deltaSeconds: number): void {
@@ -763,12 +767,12 @@ export class BocciaScene extends Phaser.Scene {
       playerScore = scoredBalls.filter(
         (ball) => ball.side === 'player' && ball.distance < closestOpponentDistance - tieDistanceTolerance,
       ).length;
-      label = `P1 +${playerScore}`;
+      label = `${this.getPlayerSideLabel()} leads by ${playerScore} in this simplified preview.`;
     } else {
       opponentScore = scoredBalls.filter(
         (ball) => ball.side === 'opponent' && ball.distance < closestPlayerDistance - tieDistanceTolerance,
       ).length;
-      label = `${this.getOpponentSideLabel()} +${opponentScore}`;
+      label = `${this.getOpponentSideLabel()} leads by ${opponentScore} in this simplified preview.`;
     }
 
     this.scoringPreview = {
@@ -782,6 +786,16 @@ export class BocciaScene extends Phaser.Scene {
 
     matchManager.setScore(playerScore, opponentScore);
     matchManager.setResultPreview(this.getResultPreviewText());
+    completeMission('boccia_first_score_preview');
+
+    if (this.isLocal2P()) {
+      completeMission('boccia_try_local_2p');
+    }
+
+    if (!this.isLocal2P() && closestSide === 'player' && playerScore > opponentScore) {
+      completeMission('boccia_win_preview_vs_cpu');
+    }
+
     this.drawScoringFeedback(scoredBalls);
     this.refreshHudLabels();
     this.updateShellScoringHud();
@@ -929,28 +943,32 @@ export class BocciaScene extends Phaser.Scene {
 
       if (this.isLocal2P()) {
         return `Mode: ${this.getModeLabel()}
+Turn: P1
 Scoring preview: waiting for P1 + P2 throws
-Closest side: —
+Closest ball: —
 Turn note: ${this.cpuNote}`;
       }
 
       return `Mode: ${this.getModeLabel()}
-Scoring preview: waiting for P1 + CPU throws
-Closest side: —
+Turn: Player
+Scoring preview: waiting for Player + CPU throws
+Closest ball: —
 CPU difficulty: ${difficulty}
 CPU note: ${this.cpuNote}`;
     }
 
     if (this.scoringPreview.closestSide === 'draw') {
-      return `Closest: Draw
-Preview score: no score preview
+      return `Mode: ${this.getModeLabel()}
+Preview result: draw / no score in this simplified preview.
+Closest ball: Draw
 Distance to jack: tied
 ${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`;
     }
 
     return [
-      `Closest: ${this.getSideLabel(this.scoringPreview.closestSide)} ball`,
-      `Preview score: ${this.scoringPreview.label}`,
+      `Mode: ${this.getModeLabel()}`,
+      `Preview result: ${this.scoringPreview.label}`,
+      `Closest ball: ${this.getSideLabel(this.scoringPreview.closestSide)}`,
       `Distance to jack: ${Math.round(this.scoringPreview.closestDistance ?? 0)} px`,
       `${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`,
     ].join('\n');
@@ -960,16 +978,16 @@ ${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`;
     if (!this.scoringPreview) {
       return this.isLocal2P()
         ? 'Boccia Local 2P preview waits for P1 throw, P2 throw, then scoring preview.'
-        : 'Boccia VS CPU preview waits for P1 throw, CPU throw, then scoring preview.';
+        : 'Boccia VS CPU preview waits for Player throw, CPU throw, then scoring preview.';
     }
 
     if (this.scoringPreview.closestSide === 'draw') {
       return this.isLocal2P()
-        ? 'Scoring preview: draw / no score after one P1 throw and one P2 throw.'
-        : 'Scoring preview: draw / no score after one P1 throw and one CPU throw.';
+        ? 'Preview result: draw / no score after one P1 throw and one P2 throw.'
+        : 'Preview result: draw / no score after one Player throw and one CPU throw.';
     }
 
-    return `Scoring preview: ${this.scoringPreview.label}. Closest side: ${this.getSideLabel(this.scoringPreview.closestSide)}. Full round flow and official Boccia rules are saved for a later PR.`;
+    return `Preview result: ${this.scoringPreview.label} Closest ball: ${this.getSideLabel(this.scoringPreview.closestSide)}. Full round flow and official Boccia rules are saved for a later PR.`;
   }
 
   private updateShellScoringHud(): void {
@@ -984,12 +1002,12 @@ ${this.isLocal2P() ? 'Turn note' : 'CPU note'}: ${this.cpuNote}`;
     cpuNote && (cpuNote.textContent = this.cpuNote);
 
     if (!this.scoringPreview) {
-      preview && (preview.textContent = this.isLocal2P() ? 'Waiting for P1 + P2 throws' : 'Waiting for P1 + CPU throws');
+      preview && (preview.textContent = this.isLocal2P() ? 'Waiting for P1 + P2 throws' : 'Waiting for Player + CPU throws');
       closest && (closest.textContent = '—');
       return;
     }
 
-    preview && (preview.textContent = this.scoringPreview.label);
+    preview && (preview.textContent = `Preview result: ${this.scoringPreview.label}`);
     closest &&
       (closest.textContent =
         this.scoringPreview.closestSide === 'draw' ? 'Draw' : this.getSideLabel(this.scoringPreview.closestSide));
