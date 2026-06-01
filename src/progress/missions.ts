@@ -31,4 +31,10 @@ export const missions: MissionDefinition[] = [
     title: 'Boccia shell visit',
     description: 'Visit the Boccia shell placeholder before gameplay exists.',
   },
+  {
+    id: 'boccia_tutorial_complete',
+    sportId: 'boccia',
+    title: 'Boccia tutorial complete',
+    description: 'Complete or skip the first Boccia tutorial overlay.',
+  },
 ];

@@ -201,6 +201,12 @@ export class BocciaScene extends Phaser.Scene {
     const deltaSeconds = Math.min(delta / 1000, 0.05);
 
     this.syncModeChange();
+
+    if (document.body.hasAttribute('data-tutorial-open')) {
+      this.previousPrimary = input.primary;
+      return;
+    }
+
     this.updateAim(input, deltaSeconds);
     this.updateCharge(input, deltaSeconds);
     this.updateRollingBalls(deltaSeconds);

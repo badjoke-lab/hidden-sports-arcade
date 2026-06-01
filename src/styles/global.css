@@ -878,3 +878,154 @@ dd {
     text-align: left;
   }
 }
+
+.section-heading__actions {
+  display: grid;
+  min-width: min(100%, 320px);
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.section-heading__actions .section-heading__note {
+  max-width: 320px;
+}
+
+.game-shell__panel--rules {
+  grid-column: 1 / -1;
+  scroll-margin-top: 16px;
+  border-color: rgba(125, 211, 252, 0.32);
+}
+
+.game-shell__panel--rules:focus {
+  outline: 3px solid rgba(56, 189, 248, 0.55);
+  outline-offset: 3px;
+}
+
+.game-shell__rules-note {
+  margin-bottom: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.34);
+  border-radius: 16px;
+  padding: 12px;
+  color: #fef3c7;
+  background: rgba(250, 204, 21, 0.1);
+  font-weight: 900;
+}
+
+.game-shell__rules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.game-shell__rule-section {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.game-shell__rule-section h4 {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
+.game-shell__rule-section p {
+  margin-bottom: 8px;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.game-shell__rule-section p:last-child {
+  margin-bottom: 0;
+}
+
+.tutorial-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  min-width: 320px;
+  place-items: center;
+  padding: 16px;
+}
+
+.tutorial-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(5px);
+}
+
+.tutorial-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  border-radius: 24px;
+  padding: clamp(18px, 5vw, 28px);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(8, 17, 31, 0.98));
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.46);
+}
+
+.tutorial-overlay__eyebrow {
+  margin-bottom: 8px;
+  color: #38bdf8;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tutorial-overlay__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tutorial-overlay__header h2 {
+  font-size: clamp(1.45rem, 8vw, 2.2rem);
+}
+
+.tutorial-overlay__count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #07111f;
+  background: #facc15;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.tutorial-overlay__body {
+  margin: 16px 0 20px;
+  color: #dbeafe;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.tutorial-overlay__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .section-heading__actions {
+    min-width: 0;
+  }
+
+  .game-shell__rules-grid,
+  .tutorial-overlay__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .tutorial-overlay__header {
+    flex-direction: column;
+  }
+
+  .tutorial-overlay__count {
+    align-self: flex-start;
+  }
+}

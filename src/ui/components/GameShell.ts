@@ -14,17 +14,22 @@ import {
 import type { Difficulty, MatchMode, MatchParticipant, MatchState, MatchStatus } from '../../game/types';
 import { inputManager } from '../../input/inputManager';
 import { BOCCIA_PLACEHOLDERS } from '../../game/sports/boccia/bocciaConfig';
+import { bocciaRuleSections } from '../../game/sports/boccia/bocciaRules';
+import { bocciaTutorialSteps } from '../../game/sports/boccia/bocciaTutorial';
 import { missions } from '../../progress/missions';
 import {
   completeMission,
   getProgressState,
+  isTutorialSeen,
   markSportPlayed,
+  markTutorialSeen,
   resetProgress,
   subscribe as subscribeProgress,
 } from '../../progress/progressManager';
 import type { ProgressState } from '../../progress/types';
 import type { InputState } from '../../input/types';
 import { setupVirtualControls, VirtualControls } from './VirtualControls';
+import { showTutorialOverlay } from './TutorialOverlay';
 
 const modeLabels: Record<MatchMode, string> = {
   vs_cpu: 'VS CPU',
@@ -54,8 +59,8 @@ function participantLabel(mode: MatchMode, participant: MatchParticipant): strin
 
 const controlHints = [
   ['Aim', 'A / D or Arrow Keys'],
-  ['Primary', 'Space / Enter'],
-  ['Secondary', 'Shift / K'],
+  ['Charge', 'Hold Space / Enter'],
+  ['Throw', 'Release Space / Enter'],
   ['Pause', 'Esc / P'],
 ] as const;
 
@@ -156,6 +161,39 @@ function renderProgressPanel(): string {
   `;
 }
 
+
+function renderBocciaRulesPanel(): string {
+  return `
+    <section id="boccia-rules" class="game-shell__panel game-shell__panel--rules" aria-labelledby="boccia-rules-title" tabindex="-1">
+      <div class="game-shell__panel-heading">
+        <div>
+          <p class="game-shell__panel-label">Rules</p>
+          <h3 id="boccia-rules-title">Boccia rules for this arcade preview</h3>
+        </div>
+        <button class="button button--secondary" type="button" data-boccia-replay-tutorial>Replay tutorial</button>
+      </div>
+      <p class="game-shell__rules-note">This is a simplified arcade version designed to teach the core idea of Boccia. It is not a full simulation of official Boccia rules.</p>
+      <div class="game-shell__rules-grid">
+        ${bocciaRuleSections
+          .map(
+            (section) => `
+              <article class="game-shell__rule-section" aria-labelledby="boccia-rule-${section.id}">
+                <h4 id="boccia-rule-${section.id}">${section.title}</h4>
+                ${section.body.map((paragraph) => `<p>${paragraph}</p>`).join('')}
+              </article>
+            `,
+          )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
+function completeBocciaTutorial(): void {
+  markTutorialSeen('boccia');
+  completeMission('boccia_tutorial_complete');
+}
+
 function renderAudioPanel(): string {
   const settings = audioManager.getSettings();
 
@@ -202,7 +240,11 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Boccia now supports one-ball VS CPU and Local 2P scoring previews.</p>
+        <div class="section-heading__actions">
+          <p class="section-heading__note">Boccia now supports one-ball VS CPU and Local 2P scoring previews.</p>
+          <button class="button button--secondary" type="button" data-boccia-rules-button>Rules</button>
+          <button class="button button--icon" type="button" data-boccia-replay-tutorial>Replay tutorial</button>
+        </div>
       </div>
 
       <div class="game-shell__layout">
@@ -356,6 +398,8 @@ export function GameShell(): string {
 
         ${renderProgressPanel()}
 
+        ${renderBocciaRulesPanel()}
+
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result preview</p>
           <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
@@ -390,6 +434,9 @@ export function setupGameShell(root: HTMLElement): void {
   const progressMissionsCompleted = root.querySelector<HTMLElement>('[data-progress-missions-completed]');
   const progressRecent = root.querySelector<HTMLElement>('[data-progress-recent]');
   const progressResetButton = root.querySelector<HTMLButtonElement>('[data-progress-reset]');
+  const rulesPanel = root.querySelector<HTMLElement>('#boccia-rules');
+  const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-rules-button]'));
+  const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
   const inputStateFields = {
     aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
     aimRight: root.querySelector<HTMLElement>('[data-input-state="aimRight"]'),
@@ -404,6 +451,34 @@ export function setupGameShell(root: HTMLElement): void {
   markSportPlayed('boccia');
   completeMission('boccia_shell_visit');
   completeMission('first_play');
+
+  function openBocciaTutorial(): void {
+    showTutorialOverlay({
+      steps: bocciaTutorialSteps,
+      sportName: 'Boccia',
+      onFinish: completeBocciaTutorial,
+      onSkip: completeBocciaTutorial,
+    });
+  }
+
+  if (!isTutorialSeen('boccia')) {
+    window.setTimeout(openBocciaTutorial, 0);
+  }
+
+  rulesButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      audioManager.playSe('select');
+      rulesPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      rulesPanel?.focus({ preventScroll: true });
+    });
+  });
+
+  replayTutorialButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      audioManager.playSe('select');
+      openBocciaTutorial();
+    });
+  });
 
   subscribeProgress((progress) => {
     progressFavorites && (progressFavorites.textContent = String(progress.favorites.length));
