@@ -32,9 +32,33 @@ export const missions: MissionDefinition[] = [
     description: 'Visit the Boccia shell placeholder before gameplay exists.',
   },
   {
-    id: 'boccia_tutorial_complete',
+    id: 'boccia_first_throw',
     sportId: 'boccia',
-    title: 'Boccia tutorial complete',
-    description: 'Complete or skip the first Boccia tutorial overlay.',
+    title: 'First throw',
+    description: 'Release your first Boccia throw in the simplified preview.',
+  },
+  {
+    id: 'boccia_first_score_preview',
+    sportId: 'boccia',
+    title: 'First score preview',
+    description: 'Reach a scoring preview after both preview balls stop.',
+  },
+  {
+    id: 'boccia_win_preview_vs_cpu',
+    sportId: 'boccia',
+    title: 'Lead a VS CPU preview',
+    description: 'Lead the CPU in a simplified scoring preview.',
+  },
+  {
+    id: 'boccia_try_local_2p',
+    sportId: 'boccia',
+    title: 'Try Local 2P',
+    description: 'Enter Local 2P or complete a Local 2P scoring preview.',
+  },
+  {
+    id: 'boccia_complete_tutorial',
+    sportId: 'boccia',
+    title: 'Complete Boccia tutorial',
+    description: 'Finish or skip the Boccia tutorial overlay.',
   },
 ];
