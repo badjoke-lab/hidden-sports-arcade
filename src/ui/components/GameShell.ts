@@ -44,10 +44,13 @@ const statusLabels: Record<MatchStatus, string> = {
   finished: 'Finished placeholder',
 };
 
-const participantLabels: Record<MatchParticipant, string> = {
-  player: 'Player',
-  opponent: 'Opponent',
-};
+function participantLabel(mode: MatchMode, participant: MatchParticipant): string {
+  if (participant === 'player') {
+    return 'P1';
+  }
+
+  return mode === 'local_2p' ? 'P2' : 'CPU';
+}
 
 const controlHints = [
   ['Aim', 'A / D or Arrow Keys'],
@@ -199,7 +202,7 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Boccia VS CPU foundation now previews scoring after one player throw and one CPU throw.</p>
+        <p class="section-heading__note">Boccia now supports one-ball VS CPU and Local 2P scoring previews.</p>
       </div>
 
       <div class="game-shell__layout">
@@ -211,10 +214,10 @@ export function GameShell(): string {
 
         <aside class="game-shell__hud" aria-label="Boccia match heads-up display placeholder">
           <div class="game-shell__panel game-shell__panel--score">
-            <p class="game-shell__panel-label">VS CPU preview score</p>
+            <p class="game-shell__panel-label">Boccia preview score</p>
             <div class="game-shell__score" aria-live="polite">
-              <span>Player <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
-              <span>Opponent <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
+              <span>P1 <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
+              <span><span data-game-shell-opponent-score-label>${matchState.mode === 'local_2p' ? 'P2' : 'Opponent'}</span> <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
             </div>
           </div>
 
@@ -235,7 +238,7 @@ export function GameShell(): string {
               </div>
               <div>
                 <dt>Current turn</dt>
-                <dd data-game-shell-current-turn>${participantLabels[matchState.turn.currentPlayer]}</dd>
+                <dd data-game-shell-current-turn>${participantLabel(matchState.mode, matchState.turn.currentPlayer)}</dd>
               </div>
               <div>
                 <dt>Turn number</dt>
@@ -273,7 +276,7 @@ export function GameShell(): string {
               </div>
               <div>
                 <dt>CPU note</dt>
-                <dd data-boccia-cpu-note>CPU waits for the player throw.</dd>
+                <dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'Local 2P waits for P1 to throw.' : 'CPU waits for the player throw.'}</dd>
               </div>
               <div>
                 <dt>Note</dt>
@@ -283,8 +286,8 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel">
-            <p class="game-shell__panel-label">Mode placeholder</p>
-            <div class="game-shell__options" role="group" aria-label="Match mode placeholder selector">
+            <p class="game-shell__panel-label">Match mode</p>
+            <div class="game-shell__options" role="group" aria-label="Match mode selector">
               ${(Object.keys(modeLabels) as MatchMode[])
                 .map((mode) => renderSegmentedButton(mode, modeLabels[mode], mode === matchState.mode, 'mode'))
                 .join('')}
@@ -292,8 +295,8 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel">
-            <p class="game-shell__panel-label">Difficulty placeholder</p>
-            <div class="game-shell__options" role="group" aria-label="Difficulty placeholder selector">
+            <p class="game-shell__panel-label">CPU difficulty</p>
+            <div class="game-shell__options" role="group" aria-label="CPU difficulty selector">
               ${(Object.keys(difficultyLabels) as Difficulty[])
                 .map((difficulty) =>
                   renderSegmentedButton(
@@ -369,6 +372,7 @@ export function setupGameShell(root: HTMLElement): void {
   const playerScore = root.querySelector<HTMLElement>('[data-game-shell-player-score]');
   const opponentScore = root.querySelector<HTMLElement>('[data-game-shell-opponent-score]');
   const currentTurn = root.querySelector<HTMLElement>('[data-game-shell-current-turn]');
+  const opponentScoreLabel = root.querySelector<HTMLElement>('[data-game-shell-opponent-score-label]');
   const turnNumber = root.querySelector<HTMLElement>('[data-game-shell-turn-number]');
   const result = root.querySelector<HTMLElement>('[data-game-shell-result]');
   const bocciaCpuDifficulty = root.querySelector<HTMLElement>('[data-boccia-cpu-difficulty]');
@@ -460,7 +464,8 @@ export function setupGameShell(root: HTMLElement): void {
     bocciaCpuDifficulty && (bocciaCpuDifficulty.textContent = difficultyLabels[state.difficulty]);
     playerScore && (playerScore.textContent = String(state.score.player));
     opponentScore && (opponentScore.textContent = String(state.score.opponent));
-    currentTurn && (currentTurn.textContent = participantLabels[state.turn.currentPlayer]);
+    opponentScoreLabel && (opponentScoreLabel.textContent = state.mode === 'local_2p' ? 'P2' : 'Opponent');
+    currentTurn && (currentTurn.textContent = participantLabel(state.mode, state.turn.currentPlayer));
     turnNumber && (turnNumber.textContent = String(state.turn.turnNumber));
     result && (result.textContent = resultText(state));
     updatePressed(modeButtons, 'gameShellMode', state.mode);
@@ -479,6 +484,7 @@ export function setupGameShell(root: HTMLElement): void {
 
       audioManager.playSe('select');
       setMode(mode);
+      window.dispatchEvent(new CustomEvent('boccia:retry'));
     });
   });
 

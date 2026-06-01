@@ -1,8 +1,20 @@
-import type { Difficulty, MatchMode, MatchState } from '../types';
+import type { Difficulty, MatchMode, MatchParticipant, MatchState } from '../types';
 
 type MatchStateListener = (state: MatchState) => void;
 
 const defaultObjective = 'Place your ball closest to the jack.';
+
+function previewReasonForMode(mode: MatchMode): string {
+  return mode === 'local_2p'
+    ? 'Boccia Local 2P preview waits for P1 throw, P2 throw, then scoring preview.'
+    : 'Boccia VS CPU preview waits for P1 throw, CPU throw, then scoring preview.';
+}
+
+function startReasonForMode(mode: MatchMode): string {
+  return mode === 'local_2p'
+    ? 'P1 throws one ball, then P2 uses the same controls to throw one ball before scoring preview.'
+    : 'Aim, charge, and throw one ball. The CPU will throw one ball before scoring preview.';
+}
 
 const createInitialMatchState = (): MatchState => ({
   sportId: 'boccia',
@@ -19,7 +31,7 @@ const createInitialMatchState = (): MatchState => ({
   },
   result: {
     winner: null,
-    reason: 'Boccia VS CPU preview waits for the player throw, CPU throw, then scoring preview.',
+    reason: previewReasonForMode('vs_cpu'),
   },
   objective: defaultObjective,
 });
@@ -68,7 +80,7 @@ export function startMatch(): MatchState {
     status: 'playing',
     result: {
       winner: null,
-      reason: 'Aim, charge, and throw one ball. The CPU will throw one ball before scoring preview.',
+      reason: startReasonForMode(state.mode),
     },
   }));
 }
@@ -92,6 +104,7 @@ export function retryMatch(): MatchState {
     ...createInitialMatchState(),
     mode: state.mode,
     difficulty: state.difficulty,
+    result: { winner: null, reason: previewReasonForMode(state.mode) },
   }));
 }
 
@@ -110,6 +123,10 @@ export function setMode(mode: MatchMode): MatchState {
   return updateMatchState((state) => ({
     ...state,
     mode,
+    status: 'ready',
+    score: { player: 0, opponent: 0 },
+    turn: { currentPlayer: 'player', turnNumber: 1 },
+    result: { winner: null, reason: previewReasonForMode(mode) },
   }));
 }
 
@@ -140,6 +157,16 @@ export function setResultPreview(reason: string): MatchState {
   }));
 }
 
+export function setTurn(currentPlayer: MatchParticipant, turnNumber: number): MatchState {
+  return updateMatchState((state) => ({
+    ...state,
+    turn: {
+      currentPlayer,
+      turnNumber,
+    },
+  }));
+}
+
 export function advanceTurnPlaceholder(): MatchState {
   return updateMatchState((state) => ({
     ...state,
@@ -162,5 +189,6 @@ export const matchManager = {
   setDifficulty,
   setScore,
   setResultPreview,
+  setTurn,
   advanceTurnPlaceholder,
 };
