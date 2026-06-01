@@ -1,6 +1,19 @@
 import Phaser from 'phaser';
+import { audioManager } from '../../audio/audioManager';
+import { inputManager } from '../../input/inputManager';
+import type { InputState } from '../../input/types';
 import { completeMission, markSportPlayed } from '../../progress/progressManager';
 import { BOCCIA_CONFIG, BOCCIA_PLACEHOLDERS } from '../sports/boccia/bocciaConfig';
+
+type BocciaPhase = 'aiming' | 'charging' | 'rolling' | 'stopped';
+
+interface BocciaBallState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  isThrown: boolean;
+}
 
 interface BallVisual {
   x: number;
@@ -9,7 +22,63 @@ interface BallVisual {
   label: string;
 }
 
+const phaseLabels: Record<BocciaPhase, string> = {
+  aiming: 'Aiming',
+  charging: 'Charging',
+  rolling: 'Rolling',
+  stopped: 'Stopped',
+};
+
+const aimLimits = {
+  min: Phaser.Math.DegToRad(-35),
+  max: Phaser.Math.DegToRad(35),
+} as const;
+
+const aimRotateSpeed = Phaser.Math.DegToRad(72);
+const aimLineLength = 230;
+const chargeSpeed = 0.85;
+const minThrowSpeed = 130;
+const maxThrowSpeed = 520;
+const frictionPerSixtyFpsFrame = 0.985;
+const stopSpeed = 14;
+
 export class BocciaScene extends Phaser.Scene {
+  private courtBounds = new Phaser.Geom.Rectangle(0, 0, 0, 0);
+
+  private phase: BocciaPhase = 'aiming';
+
+  private aimAngle = Phaser.Math.DegToRad(-5);
+
+  private power = 0;
+
+  private powerDirection: 1 | -1 = 1;
+
+  private previousPrimary = false;
+
+  private playerBall: BocciaBallState = {
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    isThrown: false,
+  };
+
+  private aimGraphics?: Phaser.GameObjects.Graphics;
+
+  private powerGraphics?: Phaser.GameObjects.Graphics;
+
+  private playerBallShadow?: Phaser.GameObjects.Arc;
+
+  private playerBallCircle?: Phaser.GameObjects.Arc;
+
+  private playerBallLabel?: Phaser.GameObjects.Text;
+
+  private phaseText?: Phaser.GameObjects.Text;
+
+  private powerText?: Phaser.GameObjects.Text;
+
+  private hintText?: Phaser.GameObjects.Text;
+
   constructor() {
     super('BocciaScene');
   }
@@ -22,14 +91,33 @@ export class BocciaScene extends Phaser.Scene {
     this.drawSceneFoundation();
   }
 
+  update(_: number, delta: number): void {
+    const input = inputManager.getInputState();
+    const deltaSeconds = Math.min(delta / 1000, 0.05);
+
+    this.updateAim(input, deltaSeconds);
+    this.updateCharge(input, deltaSeconds);
+    this.updateBall(deltaSeconds);
+    this.previousPrimary = input.primary;
+  }
+
   private drawSceneFoundation(): void {
     const { width } = this.scale;
     const courtX = (width - BOCCIA_CONFIG.court.width) / 2;
     const courtY = 72;
-    const graphics = this.add.graphics();
+    const staticGraphics = this.add.graphics();
+
+    this.courtBounds.setTo(courtX, courtY, BOCCIA_CONFIG.court.width, BOCCIA_CONFIG.court.height);
+    this.playerBall = {
+      x: courtX + BOCCIA_CONFIG.throwingArea.width - 36,
+      y: courtY + BOCCIA_CONFIG.court.height / 2,
+      vx: 0,
+      vy: 0,
+      isThrown: false,
+    };
 
     this.add
-      .text(width / 2, 26, 'Boccia Scene Foundation', {
+      .text(width / 2, 26, 'Boccia Throw Practice', {
         color: '#f8fafc',
         fontFamily: 'Arial, sans-serif',
         fontSize: '24px',
@@ -38,18 +126,21 @@ export class BocciaScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 52, `${BOCCIA_PLACEHOLDERS.objective} ${BOCCIA_PLACEHOLDERS.note}`, {
+      .text(width / 2, 52, `${BOCCIA_PLACEHOLDERS.objective} Aim, charge, and throw one player ball.`, {
         color: '#bae6fd',
         fontFamily: 'Arial, sans-serif',
         fontSize: '13px',
       })
       .setOrigin(0.5);
 
-    this.drawCourt(graphics, courtX, courtY);
+    this.drawCourt(staticGraphics, courtX, courtY);
     this.drawBalls(courtX, courtY);
-    this.drawAimLine(graphics, courtX, courtY);
-    this.drawPowerMeter(graphics, courtX, courtY);
+    this.aimGraphics = this.add.graphics();
+    this.powerGraphics = this.add.graphics();
     this.drawHudLabels(courtX, courtY);
+    this.redrawAimLine();
+    this.redrawPowerMeter();
+    this.refreshHudLabels();
   }
 
   private drawCourt(graphics: Phaser.GameObjects.Graphics, courtX: number, courtY: number): void {
@@ -77,7 +168,7 @@ export class BocciaScene extends Phaser.Scene {
     graphics.lineBetween(courtX + court.width / 2, courtY, courtX + court.width / 2, courtY + court.height);
 
     this.addLabel('Throw area', courtX + throwingArea.width / 2, courtY + 18, '#fde68a');
-    this.addLabel('Static top-down court', courtX + court.width / 2, courtY + court.height + 18, '#cbd5e1');
+    this.addLabel('Top-down court', courtX + court.width / 2, courtY + court.height + 18, '#cbd5e1');
   }
 
   private drawBalls(courtX: number, courtY: number): void {
@@ -93,12 +184,6 @@ export class BocciaScene extends Phaser.Scene {
       {
         x: courtX + 58,
         y: centerY - 46,
-        color: balls.playerColor,
-        label: 'P1',
-      },
-      {
-        x: courtX + 58,
-        y: centerY,
         color: balls.playerColor,
         label: 'P2',
       },
@@ -134,49 +219,82 @@ export class BocciaScene extends Phaser.Scene {
       this.add.circle(ball.x, ball.y, radius, ball.color, 1).setStrokeStyle(2, balls.strokeColor, 0.7);
       this.addLabel(ball.label, ball.x, ball.y + radius + 13, '#e5edf8');
     });
+
+    this.playerBallShadow = this.add.circle(this.playerBall.x, this.playerBall.y, balls.ballRadius + 2, balls.strokeColor, 0.24);
+    this.playerBallCircle = this.add
+      .circle(this.playerBall.x, this.playerBall.y, balls.ballRadius, balls.playerColor, 1)
+      .setStrokeStyle(2, balls.strokeColor, 0.9);
+    this.playerBallLabel = this.addLabel('P1', this.playerBall.x, this.playerBall.y + balls.ballRadius + 13, '#e5edf8');
   }
 
-  private drawAimLine(graphics: Phaser.GameObjects.Graphics, courtX: number, courtY: number): void {
-    const { court, throwingArea, aimLine } = BOCCIA_CONFIG;
-    const startX = courtX + throwingArea.width - 16;
-    const startY = courtY + court.height / 2;
-    const endX = courtX + court.width * 0.58;
-    const endY = courtY + court.height / 2 - 10;
+  private redrawAimLine(): void {
+    if (!this.aimGraphics || this.phase === 'rolling' || this.phase === 'stopped') {
+      this.aimGraphics?.clear();
+      return;
+    }
 
-    graphics.lineStyle(3, aimLine.color, 0.75);
-    graphics.lineBetween(startX, startY, endX, endY);
-    graphics.fillStyle(aimLine.color, 0.9);
-    graphics.fillTriangle(endX, endY, endX - 12, endY - 6, endX - 10, endY + 8);
-    this.addLabel('Aim line placeholder', (startX + endX) / 2, startY - 24, '#fde68a');
+    const { aimLine } = BOCCIA_CONFIG;
+    const startX = this.playerBall.x;
+    const startY = this.playerBall.y;
+    const endX = startX + Math.cos(this.aimAngle) * aimLineLength;
+    const endY = startY + Math.sin(this.aimAngle) * aimLineLength;
+    const arrowAngle = this.aimAngle;
+
+    this.aimGraphics.clear();
+    this.aimGraphics.lineStyle(3, aimLine.color, 0.78);
+    this.aimGraphics.lineBetween(startX, startY, endX, endY);
+    this.aimGraphics.fillStyle(aimLine.color, 0.92);
+    this.aimGraphics.fillTriangle(
+      endX,
+      endY,
+      endX - Math.cos(arrowAngle - 0.38) * 16,
+      endY - Math.sin(arrowAngle - 0.38) * 16,
+      endX - Math.cos(arrowAngle + 0.38) * 16,
+      endY - Math.sin(arrowAngle + 0.38) * 16,
+    );
   }
 
-  private drawPowerMeter(graphics: Phaser.GameObjects.Graphics, courtX: number, courtY: number): void {
+  private redrawPowerMeter(): void {
+    if (!this.powerGraphics) {
+      return;
+    }
+
     const { court, powerMeter } = BOCCIA_CONFIG;
-    const x = courtX + court.width - powerMeter.width - 18;
-    const y = courtY + court.height + 34;
+    const x = this.courtBounds.x + court.width - powerMeter.width - 18;
+    const y = this.courtBounds.y + court.height + 34;
 
-    graphics.fillStyle(powerMeter.trackColor, 1);
-    graphics.fillRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
-    graphics.fillStyle(powerMeter.fillColor, 0.55);
-    graphics.fillRoundedRect(x, y, powerMeter.width * 0.42, powerMeter.height, 7);
-    graphics.lineStyle(2, 0xdbeafe, 0.65);
-    graphics.strokeRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
-    this.addLabel('Power meter placeholder', x + powerMeter.width / 2, y + 30, '#bae6fd');
+    this.powerGraphics.clear();
+    this.powerGraphics.fillStyle(powerMeter.trackColor, 1);
+    this.powerGraphics.fillRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
+    this.powerGraphics.fillStyle(powerMeter.fillColor, this.phase === 'charging' ? 0.95 : 0.62);
+    this.powerGraphics.fillRoundedRect(x, y, powerMeter.width * this.power, powerMeter.height, 7);
+    this.powerGraphics.lineStyle(2, 0xdbeafe, 0.65);
+    this.powerGraphics.strokeRoundedRect(x, y, powerMeter.width, powerMeter.height, 7);
   }
 
   private drawHudLabels(courtX: number, courtY: number): void {
     const hudX = courtX + 18;
     const hudY = courtY + BOCCIA_CONFIG.court.height + 30;
+    const powerMeter = BOCCIA_CONFIG.powerMeter;
 
-    this.add
-      .text(hudX, hudY, `Round: ${BOCCIA_PLACEHOLDERS.round}`, this.hudTextStyle('#f8fafc'))
-      .setOrigin(0, 0.5);
-    this.add
-      .text(hudX, hudY + 22, `Balls: ${BOCCIA_PLACEHOLDERS.balls}`, this.hudTextStyle('#f8fafc'))
-      .setOrigin(0, 0.5);
-    this.add
-      .text(hudX, hudY + 44, `Current phase: ${BOCCIA_PLACEHOLDERS.phase}`, this.hudTextStyle('#7dd3fc'))
-      .setOrigin(0, 0.5);
+    this.phaseText = this.add.text(hudX, hudY, '', {
+      color: '#f8fafc',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '15px',
+      fontStyle: '700',
+    });
+
+    this.powerText = this.add.text(courtX + BOCCIA_CONFIG.court.width - powerMeter.width - 18, hudY + 20, '', {
+      color: '#bae6fd',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px',
+    });
+
+    this.hintText = this.add.text(hudX, hudY + 24, '', {
+      color: '#cbd5e1',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '12px',
+    });
   }
 
   private addLabel(text: string, x: number, y: number, color: string): Phaser.GameObjects.Text {
@@ -184,18 +302,158 @@ export class BocciaScene extends Phaser.Scene {
       .text(x, y, text, {
         color,
         fontFamily: 'Arial, sans-serif',
-        fontSize: '12px',
-        fontStyle: '700',
+        fontSize: '11px',
       })
       .setOrigin(0.5);
   }
 
-  private hudTextStyle(color: string): Phaser.Types.GameObjects.Text.TextStyle {
-    return {
-      color,
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '13px',
-      fontStyle: '700',
-    };
+  private updateAim(input: InputState, deltaSeconds: number): void {
+    if (this.phase !== 'aiming' && this.phase !== 'charging') {
+      return;
+    }
+
+    const aimDirection = Number(input.aimRight) - Number(input.aimLeft);
+
+    if (aimDirection === 0) {
+      return;
+    }
+
+    this.aimAngle = Phaser.Math.Clamp(
+      this.aimAngle + aimDirection * aimRotateSpeed * deltaSeconds,
+      aimLimits.min,
+      aimLimits.max,
+    );
+    this.redrawAimLine();
+  }
+
+  private updateCharge(input: InputState, deltaSeconds: number): void {
+    if (this.phase !== 'aiming' && this.phase !== 'charging') {
+      return;
+    }
+
+    if (input.primary) {
+      if (!this.previousPrimary) {
+        this.setPhase('charging');
+      }
+
+      this.power += this.powerDirection * chargeSpeed * deltaSeconds;
+
+      if (this.power >= 1) {
+        this.power = 1;
+        this.powerDirection = -1;
+      }
+
+      if (this.power <= 0) {
+        this.power = 0;
+        this.powerDirection = 1;
+      }
+
+      this.redrawPowerMeter();
+      this.refreshHudLabels();
+      return;
+    }
+
+    if (this.previousPrimary && this.phase === 'charging') {
+      this.throwBall();
+    }
+  }
+
+  private throwBall(): void {
+    const throwPower = Math.max(this.power, 0.08);
+    const speed = Phaser.Math.Linear(minThrowSpeed, maxThrowSpeed, throwPower);
+
+    this.playerBall.vx = Math.cos(this.aimAngle) * speed;
+    this.playerBall.vy = Math.sin(this.aimAngle) * speed;
+    this.playerBall.isThrown = true;
+    this.setPhase('rolling');
+    this.aimGraphics?.clear();
+    audioManager.playSe('throw');
+  }
+
+  private updateBall(deltaSeconds: number): void {
+    if (this.phase !== 'rolling') {
+      return;
+    }
+
+    const radius = BOCCIA_CONFIG.balls.ballRadius;
+    const friction = Math.pow(frictionPerSixtyFpsFrame, deltaSeconds * 60);
+
+    this.playerBall.x += this.playerBall.vx * deltaSeconds;
+    this.playerBall.y += this.playerBall.vy * deltaSeconds;
+    this.playerBall.vx *= friction;
+    this.playerBall.vy *= friction;
+
+    if (this.playerBall.x < this.courtBounds.left + radius) {
+      this.playerBall.x = this.courtBounds.left + radius;
+      this.playerBall.vx = Math.abs(this.playerBall.vx) * 0.35;
+    } else if (this.playerBall.x > this.courtBounds.right - radius) {
+      this.playerBall.x = this.courtBounds.right - radius;
+      this.playerBall.vx = -Math.abs(this.playerBall.vx) * 0.35;
+    }
+
+    if (this.playerBall.y < this.courtBounds.top + radius) {
+      this.playerBall.y = this.courtBounds.top + radius;
+      this.playerBall.vy = Math.abs(this.playerBall.vy) * 0.35;
+    } else if (this.playerBall.y > this.courtBounds.bottom - radius) {
+      this.playerBall.y = this.courtBounds.bottom - radius;
+      this.playerBall.vy = -Math.abs(this.playerBall.vy) * 0.35;
+    }
+
+    this.syncPlayerBallVisuals();
+
+    if (Math.hypot(this.playerBall.vx, this.playerBall.vy) <= stopSpeed) {
+      this.playerBall.vx = 0;
+      this.playerBall.vy = 0;
+      this.syncPlayerBallVisuals();
+      this.setPhase('stopped');
+    }
+  }
+
+  private syncPlayerBallVisuals(): void {
+    this.playerBallShadow?.setPosition(this.playerBall.x, this.playerBall.y);
+    this.playerBallCircle?.setPosition(this.playerBall.x, this.playerBall.y);
+    this.playerBallLabel?.setPosition(this.playerBall.x, this.playerBall.y + BOCCIA_CONFIG.balls.ballRadius + 13);
+  }
+
+  private setPhase(phase: BocciaPhase): void {
+    if (this.phase === phase) {
+      return;
+    }
+
+    this.phase = phase;
+    this.refreshHudLabels();
+    this.redrawPowerMeter();
+  }
+
+  private refreshHudLabels(): void {
+    const powerPercent = Math.round(this.power * 100);
+
+    if (this.phaseText) {
+      this.phaseText.text = `Current phase: ${phaseLabels[this.phase]}`;
+    }
+
+    if (this.powerText) {
+      this.powerText.text = `Power: ${powerPercent}%`;
+    }
+
+    if (this.hintText) {
+      this.hintText.text = this.getHintText();
+    }
+  }
+
+  private getHintText(): string {
+    if (this.phase === 'aiming') {
+      return 'A/D or arrows aim • Hold Space/Enter or Primary to charge';
+    }
+
+    if (this.phase === 'charging') {
+      return 'Release Space/Enter or Primary to throw';
+    }
+
+    if (this.phase === 'rolling') {
+      return 'Ball is rolling with friction';
+    }
+
+    return 'Ball stopped • Scoring and CPU turns arrive later';
   }
 }

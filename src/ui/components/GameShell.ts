@@ -199,7 +199,7 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Boccia court foundation is live. Throwing starts in PR-009.</p>
+        <p class="section-heading__note">Boccia court foundation is live with the first throw mechanic.</p>
       </div>
 
       <div class="game-shell__layout">
@@ -245,7 +245,7 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel game-shell__panel--boccia">
-            <p class="game-shell__panel-label">Boccia HUD placeholder</p>
+            <p class="game-shell__panel-label">Boccia HUD</p>
             <dl class="game-shell__match-details" aria-live="polite">
               <div>
                 <dt>Round</dt>
@@ -305,7 +305,7 @@ export function GameShell(): string {
         </section>
 
         <section class="game-shell__panel" aria-labelledby="controls-title">
-          <p id="controls-title" class="game-shell__panel-label">Control hints placeholder</p>
+          <p id="controls-title" class="game-shell__panel-label">Control hints</p>
           <dl class="game-shell__hints">
             ${controlHints
               .map(
