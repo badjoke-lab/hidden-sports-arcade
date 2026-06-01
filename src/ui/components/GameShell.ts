@@ -211,6 +211,7 @@ function renderBocciaLearningPanel(): string {
       <p class="game-shell__learning-copy">You can read the steps, watch a demo, or try the guided tutorial.</p>
       <div class="game-shell__learning-actions" aria-label="Boccia tutorial controls">
         <button class="button button--secondary" type="button" data-boccia-watch-demo>Watch demo</button>
+        <button class="button button--secondary" type="button" data-boccia-slow-demo>Slow demo</button>
         <button class="button button--icon" type="button" data-boccia-stop-demo disabled>Stop demo</button>
         <button class="button button--primary" type="button" data-boccia-guided-start>Guided tutorial</button>
       </div>
@@ -467,6 +468,7 @@ export function setupGameShell(root: HTMLElement): void {
   const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
   const guidedStartButton = root.querySelector<HTMLButtonElement>('[data-boccia-guided-start]');
   const watchDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-watch-demo]');
+  const slowDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-slow-demo]');
   const stopDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-stop-demo]');
   const learningStatus = root.querySelector<HTMLElement>('[data-boccia-learning-status]');
   const virtualButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-virtual-input-action]'));
@@ -526,6 +528,7 @@ export function setupGameShell(root: HTMLElement): void {
     guidedActive = true;
     setControlHighlight('aim');
     watchDemoButton && (watchDemoButton.disabled = false);
+    slowDemoButton && (slowDemoButton.disabled = false);
     stopDemoButton && (stopDemoButton.disabled = true);
     window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
     window.dispatchEvent(new CustomEvent('boccia:guided-start'));
@@ -536,7 +539,15 @@ export function setupGameShell(root: HTMLElement): void {
     guidedActive = false;
     setControlHighlight(null);
     window.dispatchEvent(new CustomEvent('boccia:guided-stop'));
-    window.dispatchEvent(new CustomEvent('boccia:demo-start'));
+    window.dispatchEvent(new CustomEvent('boccia:demo-start', { detail: { slow: false } }));
+  });
+
+  slowDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    guidedActive = false;
+    setControlHighlight(null);
+    window.dispatchEvent(new CustomEvent('boccia:guided-stop'));
+    window.dispatchEvent(new CustomEvent('boccia:demo-start', { detail: { slow: true } }));
   });
 
   stopDemoButton?.addEventListener('click', () => {
@@ -572,8 +583,9 @@ export function setupGameShell(root: HTMLElement): void {
   });
 
   window.addEventListener('boccia:demo-status', (event) => {
-    const detail = (event as CustomEvent<{ active: boolean; step: string }>).detail;
+    const detail = (event as CustomEvent<{ active: boolean; step: string; stepIndex: number; totalSteps: number; title: string; status: string; slow: boolean }>).detail;
     watchDemoButton && (watchDemoButton.disabled = detail.active);
+    slowDemoButton && (slowDemoButton.disabled = detail.active);
     stopDemoButton && (stopDemoButton.disabled = !detail.active);
 
     if (!detail.active) {
@@ -581,8 +593,8 @@ export function setupGameShell(root: HTMLElement): void {
       return;
     }
 
-    const label = detail.step === 'preview' ? 'scoring preview' : detail.step;
-    setLearningStatus(`Demo playing: ${label}. Ghost graphics do not change the real score.`);
+    const speedLabel = detail.slow ? 'Slow demo' : 'Demo running';
+    setLearningStatus(`${speedLabel}: Step ${detail.stepIndex} / ${detail.totalSteps} — ${detail.status}. Ghost graphics do not change the real score.`);
   });
 
   rulesButtons.forEach((button) => {
