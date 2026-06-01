@@ -555,6 +555,53 @@ dd {
   color: #7dd3fc;
 }
 
+
+.sports__progress-summary,
+.game-shell__progress-details {
+  display: grid;
+  gap: 8px;
+}
+
+.sports__progress-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.sports__progress-summary span,
+.game-shell__progress-details div {
+  min-width: 0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 14px;
+  padding: 10px;
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.72);
+  font-weight: 800;
+}
+
+.sports__progress-summary strong,
+.game-shell__progress-details dd {
+  color: #facc15;
+}
+
+.game-shell__progress-details {
+  margin-bottom: 12px;
+}
+
+.game-shell__progress-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-shell__reset-progress {
+  width: 100%;
+}
+
+.sport-card__favorite--active {
+  color: #07111f;
+  background: #facc15;
+}
+
 .sports__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
@@ -771,7 +818,8 @@ dd {
   }
 
   .game-shell__hud,
-  .game-shell__lower-grid {
+  .game-shell__lower-grid,
+  .sports__progress-summary {
     grid-template-columns: 1fr;
   }
 
