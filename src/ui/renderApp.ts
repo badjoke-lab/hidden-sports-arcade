@@ -1,5 +1,5 @@
 import type { Sport } from '../data/sports';
-import { completeMission, markSportPlayed, markTutorialSeen, subscribe, toggleFavorite } from '../progress/progressManager';
+import { completeMission, markSportPlayed, subscribe, toggleFavorite } from '../progress/progressManager';
 import type { ProgressState } from '../progress/types';
 import { Footer } from './components/Footer';
 import { GameShell, setupGameShell } from './components/GameShell';
@@ -91,7 +91,7 @@ function setupProgressControls(root: HTMLElement, sports: Sport[]): void {
         return;
       }
 
-      markTutorialSeen(sportId);
+      document.querySelector(`#${sportId}-rules`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
