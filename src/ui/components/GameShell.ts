@@ -1,17 +1,19 @@
+import {
+  advanceTurnPlaceholder,
+  finishMatchPlaceholder,
+  getMatchState,
+  pauseMatch,
+  resumeMatch,
+  retryMatch,
+  setDifficulty,
+  setMode,
+  startMatch,
+  subscribe,
+} from '../../game/match/matchManager';
+import type { Difficulty, MatchMode, MatchParticipant, MatchState, MatchStatus } from '../../game/types';
 import { inputManager } from '../../input/inputManager';
 import type { InputState } from '../../input/types';
-import type { Difficulty, MatchMode, MatchState, MatchStatus } from '../../game/types';
 import { setupVirtualControls, VirtualControls } from './VirtualControls';
-
-const initialMatchState: MatchState = {
-  sportId: 'boccia',
-  mode: 'vs_cpu',
-  difficulty: 'easy',
-  status: 'ready',
-  playerScore: 0,
-  opponentScore: 0,
-  objective: 'Place your ball closest to the jack.',
-};
 
 const modeLabels: Record<MatchMode, string> = {
   vs_cpu: 'VS CPU',
@@ -31,6 +33,11 @@ const statusLabels: Record<MatchStatus, string> = {
   finished: 'Finished placeholder',
 };
 
+const participantLabels: Record<MatchParticipant, string> = {
+  player: 'Player',
+  opponent: 'Opponent',
+};
+
 const controlHints = [
   ['Aim', 'A / D or Arrow Keys'],
   ['Primary', 'Space / Enter'],
@@ -40,6 +47,10 @@ const controlHints = [
 
 function inputValue(active: boolean): string {
   return active ? 'on' : 'off';
+}
+
+function resultText(state: MatchState): string {
+  return state.result.reason;
 }
 
 function renderInputDebugPanel(state: InputState): string {
@@ -90,6 +101,8 @@ function renderSegmentedButton(value: string, label: string, active: boolean, gr
 }
 
 export function GameShell(): string {
+  const matchState = getMatchState();
+
   return `
     <section id="play" class="game-shell" aria-labelledby="game-shell-title">
       <div class="section-heading section-heading--split">
@@ -111,21 +124,42 @@ export function GameShell(): string {
           <div class="game-shell__panel game-shell__panel--score">
             <p class="game-shell__panel-label">Score placeholder</p>
             <div class="game-shell__score" aria-live="polite">
-              <span>Player <strong data-game-shell-player-score>${initialMatchState.playerScore}</strong></span>
-              <span>Opponent <strong data-game-shell-opponent-score>${initialMatchState.opponentScore}</strong></span>
+              <span>Player <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
+              <span>Opponent <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
             </div>
           </div>
 
-          <div class="game-shell__panel">
-            <p class="game-shell__panel-label">Status placeholder</p>
-            <p class="game-shell__status" data-game-shell-status aria-live="polite">${statusLabels[initialMatchState.status]}</p>
+          <div class="game-shell__panel game-shell__panel--match">
+            <p class="game-shell__panel-label">Match state placeholder</p>
+            <dl class="game-shell__match-details" aria-live="polite">
+              <div>
+                <dt>Status</dt>
+                <dd data-game-shell-status>${statusLabels[matchState.status]}</dd>
+              </div>
+              <div>
+                <dt>Mode</dt>
+                <dd data-game-shell-mode-label>${modeLabels[matchState.mode]}</dd>
+              </div>
+              <div>
+                <dt>Difficulty</dt>
+                <dd data-game-shell-difficulty-label>${difficultyLabels[matchState.difficulty]}</dd>
+              </div>
+              <div>
+                <dt>Current turn</dt>
+                <dd data-game-shell-current-turn>${participantLabels[matchState.turn.currentPlayer]}</dd>
+              </div>
+              <div>
+                <dt>Turn number</dt>
+                <dd data-game-shell-turn-number>${matchState.turn.turnNumber}</dd>
+              </div>
+            </dl>
           </div>
 
           <div class="game-shell__panel">
             <p class="game-shell__panel-label">Mode placeholder</p>
             <div class="game-shell__options" role="group" aria-label="Match mode placeholder selector">
               ${(Object.keys(modeLabels) as MatchMode[])
-                .map((mode) => renderSegmentedButton(mode, modeLabels[mode], mode === initialMatchState.mode, 'mode'))
+                .map((mode) => renderSegmentedButton(mode, modeLabels[mode], mode === matchState.mode, 'mode'))
                 .join('')}
             </div>
           </div>
@@ -138,7 +172,7 @@ export function GameShell(): string {
                   renderSegmentedButton(
                     difficulty,
                     difficultyLabels[difficulty],
-                    difficulty === initialMatchState.difficulty,
+                    difficulty === matchState.difficulty,
                     'difficulty',
                   ),
                 )
@@ -156,7 +190,7 @@ export function GameShell(): string {
       <div class="game-shell__lower-grid">
         <section class="game-shell__panel" aria-labelledby="objective-title">
           <p id="objective-title" class="game-shell__panel-label">Objective placeholder</p>
-          <p class="game-shell__objective">Objective: <span data-game-shell-objective>${initialMatchState.objective}</span></p>
+          <p class="game-shell__objective">Objective: <span data-game-shell-objective>${matchState.objective}</span></p>
         </section>
 
         <section class="game-shell__panel" aria-labelledby="controls-title">
@@ -180,7 +214,9 @@ export function GameShell(): string {
           <div class="game-shell__actions" aria-label="Match placeholder controls">
             <button class="button button--primary" type="button" data-game-shell-action="start">Start</button>
             <button class="button button--secondary" type="button" data-game-shell-action="pause">Pause</button>
+            <button class="button button--secondary" type="button" data-game-shell-action="turn">Next turn</button>
             <button class="button button--icon" type="button" data-game-shell-action="retry">Retry</button>
+            <button class="button button--icon" type="button" data-game-shell-action="finish">Finish</button>
           </div>
         </section>
 
@@ -188,7 +224,7 @@ export function GameShell(): string {
 
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result panel placeholder</p>
-          <p data-game-shell-result>No result yet. Finish flow will be added with the match system.</p>
+          <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
         </section>
       </div>
     </section>
@@ -196,9 +232,13 @@ export function GameShell(): string {
 }
 
 export function setupGameShell(root: HTMLElement): void {
-  const state: MatchState = { ...initialMatchState };
-
   const status = root.querySelector<HTMLElement>('[data-game-shell-status]');
+  const modeLabel = root.querySelector<HTMLElement>('[data-game-shell-mode-label]');
+  const difficultyLabel = root.querySelector<HTMLElement>('[data-game-shell-difficulty-label]');
+  const playerScore = root.querySelector<HTMLElement>('[data-game-shell-player-score]');
+  const opponentScore = root.querySelector<HTMLElement>('[data-game-shell-opponent-score]');
+  const currentTurn = root.querySelector<HTMLElement>('[data-game-shell-current-turn]');
+  const turnNumber = root.querySelector<HTMLElement>('[data-game-shell-turn-number]');
   const result = root.querySelector<HTMLElement>('[data-game-shell-result]');
   const modeButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-mode]'));
   const difficultyButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-difficulty]'));
@@ -223,21 +263,6 @@ export function setupGameShell(root: HTMLElement): void {
     inputStateFields.lastSource && (inputStateFields.lastSource.textContent = inputState.lastSource ?? 'none');
   });
 
-  function updateStatus(nextStatus: MatchStatus): void {
-    state.status = nextStatus;
-
-    if (status) {
-      status.textContent = statusLabels[state.status];
-    }
-
-    if (result) {
-      result.textContent =
-        state.status === 'finished'
-          ? 'Finished placeholder. Real results and scoring arrive in a later PR.'
-          : 'No result yet. Finish flow will be added with the match system.';
-    }
-  }
-
   function updatePressed<T extends MatchMode | Difficulty>(
     buttons: HTMLButtonElement[],
     attribute: string,
@@ -250,6 +275,21 @@ export function setupGameShell(root: HTMLElement): void {
     });
   }
 
+  function renderMatchState(state: MatchState): void {
+    status && (status.textContent = statusLabels[state.status]);
+    modeLabel && (modeLabel.textContent = modeLabels[state.mode]);
+    difficultyLabel && (difficultyLabel.textContent = difficultyLabels[state.difficulty]);
+    playerScore && (playerScore.textContent = String(state.score.player));
+    opponentScore && (opponentScore.textContent = String(state.score.opponent));
+    currentTurn && (currentTurn.textContent = participantLabels[state.turn.currentPlayer]);
+    turnNumber && (turnNumber.textContent = String(state.turn.turnNumber));
+    result && (result.textContent = resultText(state));
+    updatePressed(modeButtons, 'gameShellMode', state.mode);
+    updatePressed(difficultyButtons, 'gameShellDifficulty', state.difficulty);
+  }
+
+  subscribe(renderMatchState);
+
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {
       const mode = button.dataset.gameShellMode as MatchMode | undefined;
@@ -258,8 +298,7 @@ export function setupGameShell(root: HTMLElement): void {
         return;
       }
 
-      state.mode = mode;
-      updatePressed(modeButtons, 'gameShellMode', state.mode);
+      setMode(mode);
     });
   });
 
@@ -271,8 +310,7 @@ export function setupGameShell(root: HTMLElement): void {
         return;
       }
 
-      state.difficulty = difficulty;
-      updatePressed(difficultyButtons, 'gameShellDifficulty', state.difficulty);
+      setDifficulty(difficulty);
     });
   });
 
@@ -281,15 +319,24 @@ export function setupGameShell(root: HTMLElement): void {
       const action = button.dataset.gameShellAction;
 
       if (action === 'start') {
-        updateStatus('playing');
+        startMatch();
       }
 
       if (action === 'pause') {
-        updateStatus(state.status === 'paused' ? 'playing' : 'paused');
+        const state = getMatchState();
+        state.status === 'paused' ? resumeMatch() : pauseMatch();
+      }
+
+      if (action === 'turn') {
+        advanceTurnPlaceholder();
       }
 
       if (action === 'retry') {
-        updateStatus('ready');
+        retryMatch();
+      }
+
+      if (action === 'finish') {
+        finishMatchPlaceholder();
       }
     });
   });
