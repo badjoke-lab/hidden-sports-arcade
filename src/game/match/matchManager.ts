@@ -19,7 +19,7 @@ const createInitialMatchState = (): MatchState => ({
   },
   result: {
     winner: null,
-    reason: 'Scene foundation loaded. Throwing starts in PR-009.',
+    reason: 'Boccia scoring preview waits for the first stopped throw.',
   },
   objective: defaultObjective,
 });
@@ -68,7 +68,7 @@ export function startMatch(): MatchState {
     status: 'playing',
     result: {
       winner: null,
-      reason: 'Boccia setup placeholder active. Throwing starts in PR-009.',
+      reason: 'Aim, charge, and throw one ball. Scoring preview appears after it stops.',
     },
   }));
 }
@@ -130,6 +130,16 @@ export function setScore(playerScore: number, opponentScore: number): MatchState
   }));
 }
 
+export function setResultPreview(reason: string): MatchState {
+  return updateMatchState((state) => ({
+    ...state,
+    result: {
+      winner: null,
+      reason,
+    },
+  }));
+}
+
 export function advanceTurnPlaceholder(): MatchState {
   return updateMatchState((state) => ({
     ...state,
@@ -151,5 +161,6 @@ export const matchManager = {
   setMode,
   setDifficulty,
   setScore,
+  setResultPreview,
   advanceTurnPlaceholder,
 };

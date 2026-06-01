@@ -38,8 +38,8 @@ const difficultyLabels: Record<Difficulty, string> = {
 };
 
 const statusLabels: Record<MatchStatus, string> = {
-  ready: 'Scene foundation',
-  playing: 'Scene foundation active',
+  ready: 'Scoring preview ready',
+  playing: 'Scoring preview active',
   paused: 'Paused',
   finished: 'Finished placeholder',
 };
@@ -199,7 +199,7 @@ export function GameShell(): string {
           <p class="eyebrow">Game shell</p>
           <h2 id="game-shell-title">Boccia</h2>
         </div>
-        <p class="section-heading__note">Boccia court foundation is live with the first throw mechanic.</p>
+        <p class="section-heading__note">Boccia court foundation now previews closest-ball scoring after the throw stops.</p>
       </div>
 
       <div class="game-shell__layout">
@@ -211,7 +211,7 @@ export function GameShell(): string {
 
         <aside class="game-shell__hud" aria-label="Boccia match heads-up display placeholder">
           <div class="game-shell__panel game-shell__panel--score">
-            <p class="game-shell__panel-label">Score placeholder</p>
+            <p class="game-shell__panel-label">Scoring preview score</p>
             <div class="game-shell__score" aria-live="polite">
               <span>Player <strong data-game-shell-player-score>${matchState.score.player}</strong></span>
               <span>Opponent <strong data-game-shell-opponent-score>${matchState.score.opponent}</strong></span>
@@ -219,7 +219,7 @@ export function GameShell(): string {
           </div>
 
           <div class="game-shell__panel game-shell__panel--match">
-            <p class="game-shell__panel-label">Match state placeholder</p>
+            <p class="game-shell__panel-label">Match state foundation</p>
             <dl class="game-shell__match-details" aria-live="polite">
               <div>
                 <dt>Status</dt>
@@ -257,7 +257,15 @@ export function GameShell(): string {
               </div>
               <div>
                 <dt>Current phase</dt>
-                <dd>${BOCCIA_PLACEHOLDERS.phase}</dd>
+                <dd data-boccia-phase>${BOCCIA_PLACEHOLDERS.phase}</dd>
+              </div>
+              <div>
+                <dt>Scoring preview</dt>
+                <dd data-boccia-scoring-preview>${BOCCIA_PLACEHOLDERS.scoringPreview}</dd>
+              </div>
+              <div>
+                <dt>Closest side</dt>
+                <dd data-boccia-closest-side>${BOCCIA_PLACEHOLDERS.closestSide}</dd>
               </div>
               <div>
                 <dt>Note</dt>
@@ -508,6 +516,7 @@ export function setupGameShell(root: HTMLElement): void {
       if (action === 'retry') {
         audioManager.playSe('select');
         retryMatch();
+        window.dispatchEvent(new CustomEvent('boccia:retry'));
       }
 
       if (action === 'finish') {
