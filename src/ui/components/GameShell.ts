@@ -1,4 +1,7 @@
+import { inputManager } from '../../input/inputManager';
+import type { InputState } from '../../input/types';
 import type { Difficulty, MatchMode, MatchState, MatchStatus } from '../../game/types';
+import { setupVirtualControls, VirtualControls } from './VirtualControls';
 
 const initialMatchState: MatchState = {
   sportId: 'boccia',
@@ -30,10 +33,48 @@ const statusLabels: Record<MatchStatus, string> = {
 
 const controlHints = [
   ['Aim', 'A / D or Arrow Keys'],
-  ['Power', 'Hold Space'],
-  ['Throw', 'Release Space'],
-  ['Pause', 'Esc'],
+  ['Primary', 'Space / Enter'],
+  ['Secondary', 'Shift / K'],
+  ['Pause', 'Esc / P'],
 ] as const;
+
+function inputValue(active: boolean): string {
+  return active ? 'on' : 'off';
+}
+
+function renderInputDebugPanel(state: InputState): string {
+  return `
+    <section class="game-shell__panel game-shell__panel--input" aria-labelledby="input-debug-title">
+      <p id="input-debug-title" class="game-shell__panel-label">Input debug</p>
+      <dl class="game-shell__input-debug" aria-live="polite">
+        <div>
+          <dt>Left</dt>
+          <dd data-input-state="aimLeft">${inputValue(state.aimLeft)}</dd>
+        </div>
+        <div>
+          <dt>Right</dt>
+          <dd data-input-state="aimRight">${inputValue(state.aimRight)}</dd>
+        </div>
+        <div>
+          <dt>Primary</dt>
+          <dd data-input-state="primary">${inputValue(state.primary)}</dd>
+        </div>
+        <div>
+          <dt>Secondary</dt>
+          <dd data-input-state="secondary">${inputValue(state.secondary)}</dd>
+        </div>
+        <div>
+          <dt>Pause</dt>
+          <dd data-input-state="pause">${inputValue(state.pause)}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd data-input-state="lastSource">${state.lastSource ?? 'none'}</dd>
+        </div>
+      </dl>
+    </section>
+  `;
+}
 
 function renderSegmentedButton(value: string, label: string, active: boolean, group: string): string {
   return `
@@ -107,6 +148,11 @@ export function GameShell(): string {
         </aside>
       </div>
 
+      <section class="game-shell__panel game-shell__panel--virtual" aria-labelledby="virtual-controls-title">
+        <p id="virtual-controls-title" class="game-shell__panel-label">Virtual controls</p>
+        ${VirtualControls()}
+      </section>
+
       <div class="game-shell__lower-grid">
         <section class="game-shell__panel" aria-labelledby="objective-title">
           <p id="objective-title" class="game-shell__panel-label">Objective placeholder</p>
@@ -138,6 +184,8 @@ export function GameShell(): string {
           </div>
         </section>
 
+        ${renderInputDebugPanel(inputManager.getInputState())}
+
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result panel placeholder</p>
           <p data-game-shell-result>No result yet. Finish flow will be added with the match system.</p>
@@ -155,6 +203,25 @@ export function setupGameShell(root: HTMLElement): void {
   const modeButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-mode]'));
   const difficultyButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-difficulty]'));
   const actionButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-game-shell-action]'));
+  const inputStateFields = {
+    aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
+    aimRight: root.querySelector<HTMLElement>('[data-input-state="aimRight"]'),
+    primary: root.querySelector<HTMLElement>('[data-input-state="primary"]'),
+    secondary: root.querySelector<HTMLElement>('[data-input-state="secondary"]'),
+    pause: root.querySelector<HTMLElement>('[data-input-state="pause"]'),
+    lastSource: root.querySelector<HTMLElement>('[data-input-state="lastSource"]'),
+  };
+
+  setupVirtualControls(root);
+
+  inputManager.subscribe((inputState) => {
+    inputStateFields.aimLeft && (inputStateFields.aimLeft.textContent = inputValue(inputState.aimLeft));
+    inputStateFields.aimRight && (inputStateFields.aimRight.textContent = inputValue(inputState.aimRight));
+    inputStateFields.primary && (inputStateFields.primary.textContent = inputValue(inputState.primary));
+    inputStateFields.secondary && (inputStateFields.secondary.textContent = inputValue(inputState.secondary));
+    inputStateFields.pause && (inputStateFields.pause.textContent = inputValue(inputState.pause));
+    inputStateFields.lastSource && (inputStateFields.lastSource.textContent = inputState.lastSource ?? 'none');
+  });
 
   function updateStatus(nextStatus: MatchStatus): void {
     state.status = nextStatus;
