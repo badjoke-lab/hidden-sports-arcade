@@ -1,4 +1,5 @@
 import type { Sport } from '../../data/sports';
+import { isFavorite } from '../../progress/progressManager';
 
 function renderTags(tags: string[]): string {
   return tags.map((tag) => `<span class="sport-card__tag">${tag}</span>`).join('');
@@ -16,6 +17,8 @@ export function SportCard(sport: Sport): string {
   const isActive = sport.status === 'active';
   const playLabel = isActive ? `Play ${sport.name}` : `${sport.name} play mode coming soon`;
   const rulesLabel = isActive ? `Read ${sport.name} rules` : `${sport.name} rules coming soon`;
+  const favorite = isFavorite(sport.id);
+  const favoriteLabel = favorite ? `Remove ${sport.name} from favorites` : `Save ${sport.name} as a favorite`;
 
   return `
     <article class="sport-card ${isActive ? 'sport-card--active' : 'sport-card--soon'}" aria-labelledby="sport-${sport.id}-title">
@@ -51,9 +54,9 @@ export function SportCard(sport: Sport): string {
         <button class="button button--secondary" type="button" data-action="rules" data-sport="${sport.id}" aria-label="${rulesLabel}" ${isActive ? '' : 'disabled'}>
           Rules
         </button>
-        <button class="button button--icon" type="button" data-action="favorite" data-sport="${sport.id}" aria-label="Save ${sport.name} as a favorite placeholder">
-          <span aria-hidden="true">♡</span>
-          <span>Favorite</span>
+        <button class="button button--icon sport-card__favorite ${favorite ? 'sport-card__favorite--active' : ''}" type="button" data-action="favorite" data-sport="${sport.id}" aria-label="${favoriteLabel}" aria-pressed="${favorite}">
+          <span data-favorite-icon aria-hidden="true">${favorite ? '♥' : '♡'}</span>
+          <span data-favorite-label>${favorite ? 'Favorited' : 'Favorite'}</span>
         </button>
       </div>
     </article>

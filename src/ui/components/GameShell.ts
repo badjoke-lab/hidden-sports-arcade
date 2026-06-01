@@ -9,10 +9,19 @@ import {
   setDifficulty,
   setMode,
   startMatch,
-  subscribe,
+  subscribe as subscribeMatch,
 } from '../../game/match/matchManager';
 import type { Difficulty, MatchMode, MatchParticipant, MatchState, MatchStatus } from '../../game/types';
 import { inputManager } from '../../input/inputManager';
+import { missions } from '../../progress/missions';
+import {
+  completeMission,
+  getProgressState,
+  markSportPlayed,
+  resetProgress,
+  subscribe as subscribeProgress,
+} from '../../progress/progressManager';
+import type { ProgressState } from '../../progress/types';
 import type { InputState } from '../../input/types';
 import { setupVirtualControls, VirtualControls } from './VirtualControls';
 
@@ -105,6 +114,43 @@ function renderSegmentedButton(value: string, label: string, active: boolean, gr
   `;
 }
 
+
+function sportLabel(sportId: string | undefined): string {
+  if (!sportId) {
+    return 'None yet';
+  }
+
+  return sportId === 'boccia' ? 'Boccia' : sportId;
+}
+
+function completedMissionCount(progress: ProgressState): number {
+  return missions.filter((mission) => progress.missions[mission.id]).length;
+}
+
+function renderProgressPanel(): string {
+  const progress = getProgressState();
+
+  return `
+    <section class="game-shell__panel game-shell__panel--progress" aria-labelledby="progress-title">
+      <p id="progress-title" class="game-shell__panel-label">Progress</p>
+      <dl class="game-shell__progress-details" aria-live="polite">
+        <div>
+          <dt>Favorites</dt>
+          <dd data-progress-favorites>${progress.favorites.length}</dd>
+        </div>
+        <div>
+          <dt>Recent</dt>
+          <dd data-progress-recent>${sportLabel(progress.recentSports[0])}</dd>
+        </div>
+        <div>
+          <dt>Missions</dt>
+          <dd><span data-progress-missions-completed>${completedMissionCount(progress)}</span> / <span data-progress-missions-total>${missions.length}</span></dd>
+        </div>
+      </dl>
+      <button class="button button--icon game-shell__reset-progress" type="button" data-progress-reset>Reset progress</button>
+    </section>
+  `;
+}
 
 function renderAudioPanel(): string {
   const settings = audioManager.getSettings();
@@ -266,6 +312,8 @@ export function GameShell(): string {
 
         ${renderAudioPanel()}
 
+        ${renderProgressPanel()}
+
         <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
           <p id="result-title" class="game-shell__panel-label">Result panel placeholder</p>
           <p>Result: <span data-game-shell-result>${resultText(matchState)}</span></p>
@@ -294,6 +342,10 @@ export function setupGameShell(root: HTMLElement): void {
   const stopBgmButton = root.querySelector<HTMLButtonElement>('[data-audio-stop-bgm]');
   const bgmVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-bgm-value]');
   const seVolumeValue = root.querySelector<HTMLOutputElement>('[data-audio-se-value]');
+  const progressFavorites = root.querySelector<HTMLElement>('[data-progress-favorites]');
+  const progressMissionsCompleted = root.querySelector<HTMLElement>('[data-progress-missions-completed]');
+  const progressRecent = root.querySelector<HTMLElement>('[data-progress-recent]');
+  const progressResetButton = root.querySelector<HTMLButtonElement>('[data-progress-reset]');
   const inputStateFields = {
     aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
     aimRight: root.querySelector<HTMLElement>('[data-input-state="aimRight"]'),
@@ -305,6 +357,15 @@ export function setupGameShell(root: HTMLElement): void {
 
   setupVirtualControls(root);
   audioManager.preload();
+  markSportPlayed('boccia');
+  completeMission('boccia_shell_visit');
+  completeMission('first_play');
+
+  subscribeProgress((progress) => {
+    progressFavorites && (progressFavorites.textContent = String(progress.favorites.length));
+    progressRecent && (progressRecent.textContent = sportLabel(progress.recentSports[0]));
+    progressMissionsCompleted && (progressMissionsCompleted.textContent = String(completedMissionCount(progress)));
+  });
 
   audioManager.subscribe((settings) => {
     if (bgmVolumeInput) {
@@ -365,7 +426,7 @@ export function setupGameShell(root: HTMLElement): void {
     updatePressed(difficultyButtons, 'gameShellDifficulty', state.difficulty);
   }
 
-  subscribe(renderMatchState);
+  subscribeMatch(renderMatchState);
 
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -401,6 +462,8 @@ export function setupGameShell(root: HTMLElement): void {
         audioManager.playSe('start');
         audioManager.playBgm('match');
         startMatch();
+        markSportPlayed('boccia');
+        completeMission('first_start');
       }
 
       if (action === 'pause') {
@@ -445,6 +508,12 @@ export function setupGameShell(root: HTMLElement): void {
 
   testSeButton?.addEventListener('click', () => {
     audioManager.playSe('select');
+    completeMission('first_audio_test');
+  });
+
+  progressResetButton?.addEventListener('click', () => {
+    audioManager.playSe('cancel');
+    resetProgress();
   });
 
   stopBgmButton?.addEventListener('click', () => {
