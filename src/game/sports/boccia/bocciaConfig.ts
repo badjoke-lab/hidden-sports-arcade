@@ -33,7 +33,7 @@ export const BOCCIA_CONFIG = {
 export const BOCCIA_PLACEHOLDERS = {
   round: '1',
   balls: 'Player 3 / Opponent 3',
-  phase: 'Setup',
+  phase: 'Aiming',
   objective: 'Place your ball closest to the jack.',
-  note: 'Throwing starts in PR-009.',
+  note: 'Aim, charge, and throw one player ball.',
 } as const;
