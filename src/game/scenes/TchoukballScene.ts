@@ -13,6 +13,14 @@ import {
 
 type TchoukballPhase = 'aiming' | 'charging' | 'flying' | 'rebounded' | 'landed';
 
+type TchoukballLandingResult = 'valid' | 'forbidden_zone' | 'out_of_bounds' | 'missed_frame' | 'none';
+
+interface TchoukballScoringPreview {
+  result: TchoukballLandingResult;
+  label: string;
+  playerPreviewScore: number;
+}
+
 type Point = {
   x: number;
   y: number;
@@ -31,6 +39,12 @@ const MIN_THROW_SPEED = 360;
 const MAX_THROW_SPEED = 560;
 const REBOUND_SPEED_MULTIPLIER = 0.78;
 const LAND_AFTER_REBOUND_MS = 880;
+const FORBIDDEN_ZONE_RADIUS = 74;
+const DEFAULT_SCORING_PREVIEW: TchoukballScoringPreview = {
+  result: 'none',
+  label: 'Preview result: No point',
+  playerPreviewScore: 0,
+};
 
 function color(hex: string): number {
   return Phaser.Display.Color.HexStringToColor(hex).color;
@@ -48,6 +62,8 @@ export class TchoukballScene extends Phaser.Scene {
   private ball: BallState = { x: 0, y: 0, vx: 0, vy: 0 };
 
   private landingPreview: Point | null = null;
+
+  private scoringPreview: TchoukballScoringPreview = { ...DEFAULT_SCORING_PREVIEW };
 
   private phase: TchoukballPhase = 'aiming';
 
@@ -193,6 +209,7 @@ export class TchoukballScene extends Phaser.Scene {
 
     this.phase = 'flying';
     this.landingPreview = null;
+    this.scoringPreview = { ...DEFAULT_SCORING_PREVIEW };
     this.ball.vx = Math.cos(aimRadians) * speed;
     this.ball.vy = Math.sin(aimRadians) * speed;
     audioManager.playSe('throw');
@@ -206,7 +223,7 @@ export class TchoukballScene extends Phaser.Scene {
       if (Phaser.Geom.Rectangle.Contains(this.reboundFrameBounds, this.ball.x, this.ball.y)) {
         this.reboundBall();
       } else if (this.ball.x < this.court.left - 28 || this.ball.y < this.court.top - 28 || this.ball.y > this.court.bottom + 28) {
-        this.reboundBall();
+        this.landMissedFrame();
       }
 
       return;
@@ -226,16 +243,8 @@ export class TchoukballScene extends Phaser.Scene {
 
   private reboundBall(): void {
     const incomingSpeed = Math.max(MIN_THROW_SPEED, Math.hypot(this.ball.vx, this.ball.vy));
-    const landingX = Phaser.Math.Clamp(
-      this.court.centerX + Phaser.Math.Linear(24, 154, this.charge),
-      this.court.left + 130,
-      this.court.right - 95,
-    );
-    const landingY = Phaser.Math.Clamp(
-      this.court.centerY + (this.aimDegrees - 180) * 2.3,
-      this.court.top + 54,
-      this.court.bottom - 54,
-    );
+    const landingX = this.court.left + 70 + this.charge * 360;
+    const landingY = this.court.centerY + (this.aimDegrees - 180) * 6.6;
     const angle = Phaser.Math.Angle.Between(this.ball.x, this.ball.y, landingX, landingY);
     const reboundSpeed = incomingSpeed * REBOUND_SPEED_MULTIPLIER;
 
@@ -252,12 +261,58 @@ export class TchoukballScene extends Phaser.Scene {
     if (this.landingPreview) {
       this.ball.x = this.landingPreview.x;
       this.ball.y = this.landingPreview.y;
+      this.scoringPreview = this.buildScoringPreview(this.landingPreview);
     }
 
     this.ball.vx = 0;
     this.ball.vy = 0;
     this.phase = 'landed';
-    audioManager.playSe('score');
+    audioManager.playSe(this.scoringPreview.result === 'valid' ? 'score' : 'fail');
+  }
+
+  private landMissedFrame(): void {
+    this.ball.vx = 0;
+    this.ball.vy = 0;
+    this.phase = 'landed';
+    this.landingPreview = null;
+    this.scoringPreview = {
+      result: 'missed_frame',
+      label: 'Preview result: No point',
+      playerPreviewScore: 0,
+    };
+    audioManager.playSe('fail');
+  }
+
+  private buildScoringPreview(point: Point): TchoukballScoringPreview {
+    const result = this.getLandingResult(point);
+
+    return {
+      result,
+      label: result === 'valid' ? 'Preview result: Player +1' : 'Preview result: No point',
+      playerPreviewScore: result === 'valid' ? 1 : 0,
+    };
+  }
+
+  private getLandingResult(point: Point): TchoukballLandingResult {
+    if (!Phaser.Geom.Rectangle.Contains(this.court, point.x, point.y)) {
+      return 'out_of_bounds';
+    }
+
+    if (this.isInForbiddenZone(point)) {
+      return 'forbidden_zone';
+    }
+
+    return 'valid';
+  }
+
+  private isInForbiddenZone(point: Point): boolean {
+    const leftZone = { x: this.court.left + 82, y: this.court.centerY };
+    const rightZone = { x: this.court.right - 82, y: this.court.centerY };
+
+    return (
+      Phaser.Math.Distance.Between(point.x, point.y, leftZone.x, leftZone.y) <= FORBIDDEN_ZONE_RADIUS ||
+      Phaser.Math.Distance.Between(point.x, point.y, rightZone.x, rightZone.y) <= FORBIDDEN_ZONE_RADIUS
+    );
   }
 
   private resetInteraction(): void {
@@ -265,6 +320,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.charge = 0;
     this.reboundElapsedMs = 0;
     this.landingPreview = null;
+    this.scoringPreview = { ...DEFAULT_SCORING_PREVIEW };
     this.ball = { x: this.playerStart.x, y: this.playerStart.y, vx: 0, vy: 0 };
   }
 
@@ -278,7 +334,7 @@ export class TchoukballScene extends Phaser.Scene {
     const aimLength = 136 + this.charge * 52;
     const aimEndX = this.playerStart.x + Math.cos(aimRadians) * aimLength;
     const aimEndY = this.playerStart.y + Math.sin(aimRadians) * aimLength;
-    const phaseLabel = this.phase[0].toUpperCase() + this.phase.slice(1);
+    const phaseLabel = this.phase === 'landed' ? 'Landed' : this.phase[0].toUpperCase() + this.phase.slice(1);
 
     graphics.clear();
 
@@ -298,11 +354,12 @@ export class TchoukballScene extends Phaser.Scene {
     this.drawBallGraphic(graphics);
 
     if (this.landingPreview) {
-      graphics.lineStyle(3, 0xfed7aa, this.phase === 'landed' ? 1 : 0.62);
-      graphics.fillStyle(0xf97316, this.phase === 'landed' ? 0.28 : 0.16);
+      const markerColor = this.getLandingMarkerColor();
+      graphics.lineStyle(3, markerColor.stroke, this.phase === 'landed' ? 1 : 0.62);
+      graphics.fillStyle(markerColor.fill, this.phase === 'landed' ? 0.32 : 0.16);
       graphics.fillCircle(this.landingPreview.x, this.landingPreview.y, 28);
       graphics.strokeCircle(this.landingPreview.x, this.landingPreview.y, 28);
-      graphics.lineStyle(2, 0xffedd5, 0.9);
+      graphics.lineStyle(2, markerColor.crosshair, 0.9);
       graphics.beginPath();
       graphics.moveTo(this.landingPreview.x - 18, this.landingPreview.y);
       graphics.lineTo(this.landingPreview.x + 18, this.landingPreview.y);
@@ -311,11 +368,96 @@ export class TchoukballScene extends Phaser.Scene {
       graphics.strokePath();
     }
 
-    this.phaseText.setText(`Phase: ${phaseLabel}`);
+    this.phaseText.setText(
+      [
+        `Phase: ${phaseLabel}`,
+        this.scoringPreview.label,
+        `Player preview score: ${this.scoringPreview.playerPreviewScore}`,
+        `Landing: ${this.getLandingLabel()}`,
+      ].join('\n'),
+    );
     this.hintText.setText(this.getHintText());
     this.landingText
-      .setText(this.phase === 'landed' ? 'Landing preview — scoring not implemented yet' : 'Landing preview')
+      .setText(this.getLandingPreviewText())
+      .setColor(this.getLandingTextColor())
       .setVisible(this.phase === 'rebounded' || this.phase === 'landed');
+  }
+
+
+  private getLandingMarkerColor(): { fill: number; stroke: number; crosshair: number } {
+    if (this.phase !== 'landed') {
+      return { fill: 0xf97316, stroke: 0xfed7aa, crosshair: 0xffedd5 };
+    }
+
+    if (this.scoringPreview.result === 'valid') {
+      return { fill: 0x84cc16, stroke: 0xfacc15, crosshair: 0xecfccb };
+    }
+
+    if (this.scoringPreview.result === 'forbidden_zone') {
+      return { fill: 0xef4444, stroke: 0xfb923c, crosshair: 0xffedd5 };
+    }
+
+    return { fill: 0xdc2626, stroke: 0xfca5a5, crosshair: 0xfee2e2 };
+  }
+
+  private getLandingPreviewText(): string {
+    if (this.phase !== 'landed') {
+      return 'Landing preview';
+    }
+
+    if (this.scoringPreview.result === 'valid') {
+      return `Valid landing preview\n${this.scoringPreview.label}`;
+    }
+
+    if (this.scoringPreview.result === 'forbidden_zone') {
+      return `Forbidden zone preview\n${this.scoringPreview.label}`;
+    }
+
+    if (this.scoringPreview.result === 'out_of_bounds') {
+      return `Out of bounds preview\n${this.scoringPreview.label}`;
+    }
+
+    if (this.scoringPreview.result === 'missed_frame') {
+      return `Shot must hit the rebound frame first\n${this.scoringPreview.label}`;
+    }
+
+    return this.scoringPreview.label;
+  }
+
+  private getLandingTextColor(): string {
+    if (this.scoringPreview.result === 'valid') {
+      return '#bef264';
+    }
+
+    if (this.scoringPreview.result === 'missed_frame') {
+      return '#fecaca';
+    }
+
+    if (this.scoringPreview.result === 'forbidden_zone' || this.scoringPreview.result === 'out_of_bounds') {
+      return '#fdba74';
+    }
+
+    return '#fed7aa';
+  }
+
+  private getLandingLabel(): string {
+    if (this.scoringPreview.result === 'valid') {
+      return 'Valid';
+    }
+
+    if (this.scoringPreview.result === 'forbidden_zone') {
+      return 'Forbidden zone';
+    }
+
+    if (this.scoringPreview.result === 'out_of_bounds') {
+      return 'Out';
+    }
+
+    if (this.scoringPreview.result === 'missed_frame') {
+      return 'Missed frame';
+    }
+
+    return 'Pending';
   }
 
   private drawPowerMeter(graphics: Phaser.GameObjects.Graphics): void {
@@ -355,7 +497,7 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'landed') {
-      return 'Landing preview only. Press Primary to reset; no scoring yet.';
+      return 'Preview result only. Press Primary to retry; no full scoring system yet.';
     }
 
     return 'Aim with A / D or ← / →. Hold Space / Enter / Primary to charge.';
@@ -422,7 +564,7 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, 52, 'Aim, charge, throw, rebound, and landing preview — no scoring yet', {
+    this.add.text(centerX, 52, 'Aim, charge, throw, rebound, and simplified scoring preview — no full rules yet', {
       align: 'center',
       color: '#bae6fd',
       fontFamily: 'Inter, sans-serif',
