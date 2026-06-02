@@ -80,6 +80,12 @@ function setupProgressControls(root: HTMLElement, sports: Sport[]): void {
       markSportPlayed(sportId);
       completeMission('first_play');
       document.querySelector('#play')?.scrollIntoView({ behavior: 'smooth' });
+
+      if (sportId === 'tchoukball') {
+        window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
+      } else if (sportId === 'boccia') {
+        window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'boccia' } }));
+      }
     });
   });
 

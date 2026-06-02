@@ -16,6 +16,7 @@ import { inputManager } from '../../input/inputManager';
 import { BOCCIA_PLACEHOLDERS } from '../../game/sports/boccia/bocciaConfig';
 import { bocciaRuleSections } from '../../game/sports/boccia/bocciaRules';
 import { bocciaTutorialSteps } from '../../game/sports/boccia/bocciaTutorial';
+import { tchoukballRuleSections, tchoukballRulesNotice } from '../../game/sports/tchoukball/tchoukballRules';
 import { missions } from '../../progress/missions';
 import {
   completeMission,
@@ -132,7 +133,12 @@ function sportLabel(sportId: string | undefined): string {
     return 'None yet';
   }
 
-  return sportId === 'boccia' ? 'Boccia' : sportId;
+  const labels: Record<string, string> = {
+    boccia: 'Boccia',
+    tchoukball: 'Tchoukball',
+  };
+
+  return labels[sportId] ?? sportId;
 }
 
 function completedMissionCount(progress: ProgressState): number {
@@ -205,6 +211,48 @@ function renderBocciaRulesPanel(): string {
           .join('')}
       </div>
     </details>
+  `;
+}
+
+function renderTchoukballRulesPanel(): string {
+  return `
+    <details id="tchoukball-rules" class="game-shell__panel game-shell__panel--rules game-shell__details" tabindex="-1">
+      <summary class="game-shell__details-summary game-shell__details-summary--rules">
+        <span>
+          <span class="game-shell__panel-label">Tchoukball rules</span>
+          <strong id="tchoukball-rules-title">Foundation rule placeholder</strong>
+        </span>
+        <span class="game-shell__summary-note">Simplified arcade learning plan</span>
+      </summary>
+      <p class="game-shell__rules-note">${tchoukballRulesNotice}</p>
+      <div class="game-shell__rules-grid">
+        ${tchoukballRuleSections
+          .map(
+            (section) => `
+              <article class="game-shell__rule-section" aria-labelledby="tchoukball-rule-${section.id}">
+                <h4 id="tchoukball-rule-${section.id}">${section.title}</h4>
+                ${section.body.map((paragraph) => `<p>${paragraph}</p>`).join('')}
+              </article>
+            `,
+          )
+          .join('')}
+      </div>
+    </details>
+  `;
+}
+
+function renderTchoukballFoundationPanel(): string {
+  return `
+    <section class="game-shell__panel game-shell__panel--tchoukball" aria-labelledby="tchoukball-foundation-title">
+      <p id="tchoukball-foundation-title" class="game-shell__panel-label">Tchoukball foundation</p>
+      <p class="game-shell__learning-copy">Next sport foundation in progress. Preview the static court, rebound frames, forbidden zones, players, and ball marker.</p>
+      <div class="game-shell__learning-actions game-shell__learning-actions--foundation" aria-label="Tchoukball foundation controls">
+        <button class="button button--primary" type="button" data-tchoukball-preview>Preview foundation</button>
+        <button class="button button--secondary" type="button" data-tchoukball-rules-button>Tchoukball rules</button>
+        <button class="button button--icon" type="button" data-boccia-preview-return>Back to Boccia</button>
+      </div>
+      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Boccia remains the main playable game. Tchoukball is a visual-only preview.</p>
+    </section>
   `;
 }
 
@@ -282,6 +330,7 @@ export function GameShell(): string {
           <p class="section-heading__note">One-ball VS CPU and Local 2P arcade scoring preview.</p>
           <button class="button button--secondary" type="button" data-boccia-rules-button>Boccia rules</button>
           <button class="button button--icon" type="button" data-boccia-replay-tutorial>Replay tutorial</button>
+          <button class="button button--secondary" type="button" data-tchoukball-preview>Preview Tchoukball</button>
         </div>
       </div>
 
@@ -409,6 +458,8 @@ export function GameShell(): string {
         </aside>
 
         ${renderBocciaLearningPanel()}
+
+        ${renderTchoukballFoundationPanel()}
       </div>
 
       <div class="game-shell__lower-grid" aria-label="Boccia secondary panels">
@@ -437,6 +488,8 @@ export function GameShell(): string {
         </details>
 
         ${renderBocciaRulesPanel()}
+
+        ${renderTchoukballRulesPanel()}
 
         ${renderAudioPanel()}
 
@@ -475,8 +528,13 @@ export function setupGameShell(root: HTMLElement): void {
   const progressLatestMission = root.querySelector<HTMLElement>('[data-progress-latest-mission]');
   const progressResetButton = root.querySelector<HTMLButtonElement>('[data-progress-reset]');
   const rulesPanel = root.querySelector<HTMLDetailsElement>('#boccia-rules');
+  const tchoukballRulesPanel = root.querySelector<HTMLDetailsElement>('#tchoukball-rules');
   const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-rules-button]'));
   const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
+  const tchoukballPreviewButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tchoukball-preview]'));
+  const tchoukballRulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tchoukball-rules-button]'));
+  const bocciaPreviewReturnButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-preview-return]'));
+  const foundationPreviewStatus = root.querySelector<HTMLElement>('[data-foundation-preview-status]');
   const guidedStartButton = root.querySelector<HTMLButtonElement>('[data-boccia-guided-start]');
   const watchDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-watch-demo]');
   const slowDemoButton = root.querySelector<HTMLButtonElement>('[data-boccia-slow-demo]');
@@ -623,6 +681,36 @@ export function setupGameShell(root: HTMLElement): void {
     button.addEventListener('click', () => {
       audioManager.playSe('select');
       openBocciaTutorial();
+    });
+  });
+
+  tchoukballPreviewButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      audioManager.playSe('select');
+      window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+      window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
+      markSportPlayed('tchoukball');
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Showing Tchoukball foundation preview: visuals only, no scoring or CPU yet.');
+      document.querySelector('#play')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  bocciaPreviewReturnButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      audioManager.playSe('select');
+      window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'boccia' } }));
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Back to Boccia. Tchoukball remains a visual-only foundation preview.');
+    });
+  });
+
+  tchoukballRulesButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      audioManager.playSe('select');
+      if (tchoukballRulesPanel) {
+        tchoukballRulesPanel.open = true;
+        tchoukballRulesPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        tchoukballRulesPanel.focus({ preventScroll: true });
+      }
     });
   });
 

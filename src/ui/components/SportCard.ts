@@ -6,7 +6,15 @@ function renderTags(tags: string[]): string {
 }
 
 function formatStatus(status: Sport['status']): string {
-  return status === 'active' ? 'Active' : 'Coming soon';
+  if (status === 'active') {
+    return 'Active';
+  }
+
+  if (status === 'foundation') {
+    return 'Foundation';
+  }
+
+  return 'Coming soon';
 }
 
 function formatDifficulty(difficulty: Sport['difficulty']): string {
@@ -15,13 +23,15 @@ function formatDifficulty(difficulty: Sport['difficulty']): string {
 
 export function SportCard(sport: Sport): string {
   const isActive = sport.status === 'active';
-  const playLabel = isActive ? `Play ${sport.name}` : `${sport.name} play mode coming soon`;
-  const rulesLabel = isActive ? `Read ${sport.name} rules` : `${sport.name} rules coming soon`;
+  const isFoundation = sport.status === 'foundation';
+  const hasPreview = isActive || isFoundation;
+  const playLabel = isActive ? `Play ${sport.name}` : isFoundation ? `Preview ${sport.name} foundation` : `${sport.name} play mode coming soon`;
+  const rulesLabel = hasPreview ? `Read ${sport.name} rules` : `${sport.name} rules coming soon`;
   const favorite = isFavorite(sport.id);
   const favoriteLabel = favorite ? `Remove ${sport.name} from favorites` : `Save ${sport.name} as a favorite`;
 
   return `
-    <article class="sport-card ${isActive ? 'sport-card--active' : 'sport-card--soon'}" aria-labelledby="sport-${sport.id}-title">
+    <article class="sport-card ${isActive ? 'sport-card--active' : isFoundation ? 'sport-card--foundation' : 'sport-card--soon'}" aria-labelledby="sport-${sport.id}-title">
       <div class="sport-card__header">
         <div>
           <p class="sport-card__kicker">${sport.shortName ?? sport.name}</p>
@@ -48,10 +58,10 @@ export function SportCard(sport: Sport): string {
       </div>
 
       <div class="sport-card__actions" aria-label="${sport.name} actions">
-        <button class="button button--primary" type="button" data-action="play" data-sport="${sport.id}" aria-label="${playLabel}" ${isActive ? '' : 'disabled'}>
-          ${isActive ? 'Play' : 'Soon'}
+        <button class="button button--primary" type="button" data-action="play" data-sport="${sport.id}" aria-label="${playLabel}" ${hasPreview ? '' : 'disabled'}>
+          ${isActive ? 'Play' : isFoundation ? 'Preview' : 'Soon'}
         </button>
-        <button class="button button--secondary" type="button" data-action="rules" data-sport="${sport.id}" aria-label="${rulesLabel}" ${isActive ? '' : 'disabled'}>
+        <button class="button button--secondary" type="button" data-action="rules" data-sport="${sport.id}" aria-label="${rulesLabel}" ${hasPreview ? '' : 'disabled'}>
           Rules
         </button>
         <button class="button button--icon sport-card__favorite ${favorite ? 'sport-card__favorite--active' : ''}" type="button" data-action="favorite" data-sport="${sport.id}" aria-label="${favoriteLabel}" aria-pressed="${favorite}">
