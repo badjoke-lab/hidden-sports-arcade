@@ -70,7 +70,21 @@ function inputValue(active: boolean): string {
   return active ? 'on' : 'off';
 }
 
-function resultText(state: MatchState): string {
+function resultTextForSport(sport: GameShellSport, state: MatchState): string {
+  if (sport === 'tchoukball') {
+    if (state.status === 'playing') {
+      return state.mode === 'local_2p'
+        ? 'P1 throw, then P2 reply.'
+        : 'P1 throw, then CPU reply.';
+    }
+
+    if (state.status === 'finished') {
+      return 'Tchoukball preview complete. Retry to try another rebound.';
+    }
+
+    return 'Tchoukball preview waits for P1 throw, then CPU/P2 reply.';
+  }
+
   return state.result.reason;
 }
 
@@ -217,11 +231,10 @@ function renderSportPhasePanel(sport: GameShellSport, matchState: MatchState): s
     return `
       <div class="game-shell__panel game-shell__panel--tchoukball">
         <p class="game-shell__panel-label">Tchoukball preview</p>
-        <dl class="game-shell__match-details" aria-live="polite">
-          <div><dt>Frame</dt><dd>Rebound frame preview</dd></div>
-          <div><dt>Zone</dt><dd>Forbidden zone awareness</dd></div>
-          <div><dt>Landing</dt><dd>Valid landing scores for the thrower</dd></div>
-          <div><dt>CPU note</dt><dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'Local 2P lets P2 take the reply.' : 'CPU uses an automatic reply after your shot.'}</dd></div>
+        <dl class="game-shell__match-details game-shell__match-details--compact" aria-live="polite">
+          <div><dt>Status</dt><dd>Foundation preview</dd></div>
+          <div><dt>Landing rule</dt><dd>Outside forbidden zone</dd></div>
+          <div><dt>Reply</dt><dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'P2 after P1 shot' : 'CPU after P1 shot'}</dd></div>
         </dl>
       </div>
     `;
@@ -316,7 +329,7 @@ export function GameShell(sport: GameShellSport): string {
 
           <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
             <p id="result-title" class="game-shell__panel-label">Preview result</p>
-            <p><span data-game-shell-result>${resultText(matchState)}</span></p>
+            <p><span data-game-shell-result>${resultTextForSport(sport, matchState)}</span></p>
           </section>
 
           <section class="game-shell__panel game-shell__panel--actions" aria-labelledby="actions-title">
@@ -324,7 +337,7 @@ export function GameShell(sport: GameShellSport): string {
             <div class="game-shell__actions" aria-label="${sportName} match controls">
               <button class="button button--primary" type="button" data-game-shell-action="start">Start</button>
               <button class="button button--secondary" type="button" data-game-shell-action="pause">Pause</button>
-              <button class="button button--secondary" type="button" data-game-shell-action="turn">Next turn</button>
+              ${sport === 'boccia' ? '<button class="button button--secondary" type="button" data-game-shell-action="turn">Next turn</button>' : ''}
               <button class="button button--icon" type="button" data-game-shell-action="retry">Retry</button>
               <button class="button button--icon" type="button" data-game-shell-action="finish">Finish</button>
             </div>
@@ -645,7 +658,7 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
     opponentScoreLabel && (opponentScoreLabel.textContent = state.mode === 'local_2p' ? 'P2' : 'CPU');
     currentTurn && (currentTurn.textContent = participantLabel(state.mode, state.turn.currentPlayer));
     turnNumber && (turnNumber.textContent = String(state.turn.turnNumber));
-    result && (result.textContent = resultText(state));
+    result && (result.textContent = resultTextForSport(sport, state));
     updatePressed(modeButtons, 'gameShellMode', state.mode);
     updatePressed(difficultyButtons, 'gameShellDifficulty', state.difficulty);
   }

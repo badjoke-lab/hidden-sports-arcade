@@ -1614,6 +1614,100 @@ dd {
   }
 }
 
+/* PR-027 Tchoukball readability layout */
+.game-shell__hud {
+  min-width: 0;
+}
+
+.game-shell__hud > * {
+  min-width: 220px;
+}
+
+.game-shell--tchoukball .game-shell__layout {
+  grid-template-areas:
+    "stage"
+    "controls"
+    "learn"
+    "hud";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+}
+
+.game-shell--tchoukball .game-shell__hud {
+  position: static;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.game-shell--tchoukball .game-shell__panel--learning {
+  grid-area: learn;
+}
+
+.game-shell--tchoukball .game-shell__panel--match .game-shell__match-details,
+.game-shell--tchoukball .game-shell__match-details--compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.game-shell--tchoukball .game-shell__panel--match .game-shell__match-details div,
+.game-shell--tchoukball .game-shell__match-details--compact div {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.game-shell--tchoukball .game-shell__panel--match .game-shell__match-details dd,
+.game-shell--tchoukball .game-shell__match-details--compact dd {
+  text-align: left;
+}
+
+.game-shell--tchoukball .game-shell__actions {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+}
+
+.game-shell--tchoukball .game-shell__options {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
+}
+
+.game-shell--tchoukball .game-shell__learning-copy,
+.game-shell--tchoukball .game-shell__learning-status,
+.game-shell--tchoukball .game-shell__panel--result p:last-child {
+  max-width: 70ch;
+}
+
+@media (max-width: 820px) {
+  .game-shell--tchoukball .game-shell__layout {
+    grid-template-areas:
+      "stage"
+      "controls"
+      "learn"
+      "actions"
+      "mode"
+      "difficulty"
+      "score"
+      "match"
+      "foundation"
+      "result";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-shell--tchoukball .game-shell__hud {
+    display: contents;
+  }
+}
+
+@media (max-width: 380px) {
+  .game-shell--tchoukball .game-shell__hud > *,
+  .game-shell--tchoukball .game-shell__panel {
+    min-width: 0;
+  }
+
+  .game-shell--tchoukball .game-shell__options,
+  .game-shell--tchoukball .game-shell__actions,
+  .game-shell--tchoukball .game-shell__learning-actions--foundation {
+    grid-template-columns: 1fr;
+  }
+}
+
 .route-error {
   width: min(100%, 720px);
   margin: 0 auto;
