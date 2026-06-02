@@ -371,7 +371,7 @@ export function GameShell(): string {
             <p><span data-game-shell-result>${resultText(matchState)}</span></p>
           </section>
 
-          <section class="game-shell__panel" aria-labelledby="actions-title">
+          <section class="game-shell__panel game-shell__panel--actions" aria-labelledby="actions-title">
             <p id="actions-title" class="game-shell__panel-label">Actions</p>
             <div class="game-shell__actions" aria-label="Match controls">
               <button class="button button--primary" type="button" data-game-shell-action="start">Start</button>

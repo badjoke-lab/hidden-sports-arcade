@@ -1365,3 +1365,171 @@ dd {
     min-height: 208px;
   }
 }
+
+/* PR-017 final mobile-first cleanup */
+.game-shell__panel--virtual {
+  border-color: rgba(56, 189, 248, 0.36);
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.game-shell__panel--actions {
+  border-color: rgba(34, 197, 94, 0.26);
+}
+
+.game-shell__hud {
+  position: sticky;
+  top: 12px;
+}
+
+.game-shell__frame {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(56, 189, 248, 0.12), transparent 42%),
+    #08111f;
+}
+
+.game-shell__canvas canvas {
+  max-width: 820px;
+}
+
+.game-shell__panel--input {
+  opacity: 0.82;
+}
+
+@media (max-width: 820px) {
+  .game-shell__layout {
+    grid-template-areas:
+      "stage"
+      "controls"
+      "score"
+      "match"
+      "phase"
+      "result"
+      "actions"
+      "learn"
+      "mode"
+      "difficulty";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-shell__hud {
+    display: contents;
+    position: static;
+  }
+
+  .game-shell__panel--score {
+    grid-area: score;
+  }
+
+  .game-shell__panel--match {
+    grid-area: match;
+  }
+
+  .game-shell__panel--boccia {
+    grid-area: phase;
+  }
+
+  .game-shell__panel--result {
+    grid-area: result;
+  }
+
+  .game-shell__panel--actions {
+    grid-area: actions;
+  }
+
+  .game-shell__panel--mode {
+    grid-area: mode;
+  }
+
+  .game-shell__panel--difficulty {
+    grid-area: difficulty;
+  }
+
+  .game-shell__panel--learning {
+    grid-area: learn;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell__layout,
+  .game-shell__lower-grid {
+    gap: 10px;
+  }
+
+  .game-shell__panel--match .game-shell__match-details,
+  .game-shell__panel--boccia .game-shell__match-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__panel--match .game-shell__match-details div,
+  .game-shell__panel--boccia .game-shell__match-details div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .game-shell__panel--match .game-shell__match-details dd,
+  .game-shell__panel--boccia .game-shell__match-details dd {
+    text-align: left;
+  }
+
+  .game-shell__panel--boccia .game-shell__match-details div:nth-child(6),
+  .game-shell__panel--boccia .game-shell__match-details div:nth-child(7) {
+    grid-column: 1 / -1;
+  }
+
+  .game-shell__learning-copy {
+    display: none;
+  }
+
+  .game-shell__learning-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__learning-status {
+    max-height: 5.8em;
+    overflow-y: auto;
+  }
+
+  .game-shell__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .game-shell__actions .button:first-child,
+  .game-shell__actions .button:nth-child(4) {
+    grid-column: span 1;
+  }
+
+  .game-shell__lower-grid {
+    margin-top: 10px;
+  }
+
+  .sports {
+    margin-top: 18px;
+  }
+
+  .sports .section-heading {
+    margin-bottom: 12px;
+  }
+
+  .sports__progress-summary {
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .game-shell__panel--match .game-shell__match-details,
+  .game-shell__panel--boccia .game-shell__match-details,
+  .game-shell__learning-actions,
+  .game-shell__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .game-shell__panel-label {
+    font-size: 0.7rem;
+  }
+
+  .game-shell__details-summary::after {
+    width: 24px;
+    height: 24px;
+  }
+}
