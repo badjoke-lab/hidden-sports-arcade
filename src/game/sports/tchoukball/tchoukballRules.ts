@@ -12,32 +12,54 @@ export const tchoukballRuleSections: TchoukballRuleSection[] = [
     id: 'what-is-tchoukball',
     title: 'What is Tchoukball?',
     body: [
-      'Tchoukball is a fast, non-contact team sport where attacks are aimed at angled rebound frames instead of defended goals.',
-      'Players try to create clean throwing angles while the other team reads the rebound and moves to catch the ball.',
+      'Tchoukball is a non-contact team sport built around angled rebound frames instead of defended goals.',
+      'Teams attack by throwing into a frame and reading where the rebound will land in the court.',
     ],
   },
   {
     id: 'core-idea',
     title: 'Core idea',
+    body: ['Aim at a frame, choose power, hit the frame, and make the rebound land in open court space.'],
+  },
+  {
+    id: 'why-frames-matter',
+    title: 'Why rebound frames matter',
+    body: ['The frame changes the throw into a rebound. In this preview, missing the frame makes the landing invalid.'],
+  },
+  {
+    id: 'forbidden-zone',
+    title: 'Forbidden zone',
+    body: ['The pink semicircle near each frame is the forbidden zone. A landing there is not a valid preview.'],
+  },
+  {
+    id: 'arcade-preview',
+    title: 'How this arcade preview works',
+    body: ['Each side gets one rebound shot. A valid preview means the ball hit the frame, stayed in bounds, and landed outside the forbidden zone.'],
+  },
+  {
+    id: 'vs-cpu',
+    title: 'VS CPU',
+    body: ['Player 1 aims, charges, and throws first. The CPU then takes one automatic reply shot using the selected difficulty.'],
+  },
+  {
+    id: 'local-2p',
+    title: 'Local 2P',
+    body: ['Player 1 throws first. Player 2 then uses the same keyboard or mobile controls for one reply shot.'],
+  },
+  {
+    id: 'controls',
+    title: 'Controls',
     body: [
-      'Throw the ball into a rebound frame so it bounces back into open court space.',
-      'The defending side is not trying to block the throw at the frame; it is trying to predict and catch the rebound.',
+      'Keyboard: Aim with A / D or Arrow keys. Charge by holding Space / Enter. Throw by releasing Space / Enter.',
+      'Mobile: use Aim Left / Aim Right and Primary. Retry resets the current preview.',
     ],
   },
   {
-    id: 'simplified-arcade-version',
-    title: 'Simplified arcade version',
+    id: 'simplified',
+    title: 'What is simplified',
     body: [
-      'The foundation preview shows the court, frames, forbidden zones, player markers, aim/throw flow, a CPU reply, and simplified landing results.',
-      'Current arcade controls focus on aiming at the frame, choosing power, and learning how rebounds create space.',
-    ],
-  },
-  {
-    id: 'playable-later',
-    title: 'What will be playable later',
-    body: [
-      'Later versions can add catching, rebound prediction, tutorials, local multiplayer shells, and fuller match structure.',
-      'For this foundation, the player takes one shot and the CPU takes one automated reply; valid landings are worth non-final preview points, and there is no Local 2P Tchoukball mode, full match flow, or real catch gameplay yet.',
+      tchoukballRulesNotice,
+      'Official scoring, full team movement, passing, defense, catching, fouls, substitutions, and complete match flow are intentionally not simulated here.',
     ],
   },
 ];

@@ -61,4 +61,40 @@ export const missions: MissionDefinition[] = [
     title: 'Complete Boccia tutorial',
     description: 'Finish or skip the Boccia tutorial overlay.',
   },
+  {
+    id: 'tchoukball_first_throw',
+    sportId: 'tchoukball',
+    title: 'Tchoukball first throw',
+    description: 'Release your first Tchoukball rebound shot in the simplified preview.',
+  },
+  {
+    id: 'tchoukball_first_rebound',
+    sportId: 'tchoukball',
+    title: 'First Tchoukball rebound',
+    description: 'Hit a rebound frame in the Tchoukball preview.',
+  },
+  {
+    id: 'tchoukball_first_valid_landing',
+    sportId: 'tchoukball',
+    title: 'Valid Tchoukball landing',
+    description: 'Land a rebound in bounds and outside the forbidden zone.',
+  },
+  {
+    id: 'tchoukball_try_vs_cpu',
+    sportId: 'tchoukball',
+    title: 'Try Tchoukball VS CPU',
+    description: 'Open or play the Tchoukball preview in VS CPU mode.',
+  },
+  {
+    id: 'tchoukball_try_local_2p',
+    sportId: 'tchoukball',
+    title: 'Try Tchoukball Local 2P',
+    description: 'Open or play the Tchoukball preview in Local 2P mode.',
+  },
+  {
+    id: 'tchoukball_watch_demo',
+    sportId: 'tchoukball',
+    title: 'Watch Tchoukball demo',
+    description: 'Start the lightweight Tchoukball explanation demo.',
+  },
 ];

@@ -17,6 +17,7 @@ import { BOCCIA_PLACEHOLDERS } from '../../game/sports/boccia/bocciaConfig';
 import { bocciaRuleSections } from '../../game/sports/boccia/bocciaRules';
 import { bocciaTutorialSteps } from '../../game/sports/boccia/bocciaTutorial';
 import { tchoukballRuleSections, tchoukballRulesNotice } from '../../game/sports/tchoukball/tchoukballRules';
+import { tchoukballTutorialSteps } from '../../game/sports/tchoukball/tchoukballTutorial';
 import { missions } from '../../progress/missions';
 import {
   completeMission,
@@ -220,9 +221,9 @@ function renderTchoukballRulesPanel(): string {
       <summary class="game-shell__details-summary game-shell__details-summary--rules">
         <span>
           <span class="game-shell__panel-label">Tchoukball rules</span>
-          <strong id="tchoukball-rules-title">Foundation rule placeholder</strong>
+          <strong id="tchoukball-rules-title">Simplified arcade rules</strong>
         </span>
-        <span class="game-shell__summary-note">Simplified arcade learning plan</span>
+        <span class="game-shell__summary-note">Simplified, not official full Tchoukball rules</span>
       </summary>
       <p class="game-shell__rules-note">${tchoukballRulesNotice}</p>
       <div class="game-shell__rules-grid">
@@ -244,14 +245,18 @@ function renderTchoukballRulesPanel(): string {
 function renderTchoukballFoundationPanel(): string {
   return `
     <section class="game-shell__panel game-shell__panel--tchoukball" aria-labelledby="tchoukball-foundation-title">
-      <p id="tchoukball-foundation-title" class="game-shell__panel-label">Tchoukball foundation</p>
-      <p class="game-shell__learning-copy">Next sport foundation in progress. Preview one P1 rebound shot, then either a CPU or Local 2P reply, landing validation, and a simplified comparison.</p>
+      <p id="tchoukball-foundation-title" class="game-shell__panel-label">Learn Tchoukball</p>
+      <p class="game-shell__learning-copy">Try one rebound shot, watch a compact demo, or open guided steps. This preview teaches the frame + landing idea only.</p>
       <div class="game-shell__learning-actions game-shell__learning-actions--foundation" aria-label="Tchoukball foundation controls">
         <button class="button button--primary" type="button" data-tchoukball-preview>Preview foundation</button>
+        <button class="button button--secondary" type="button" data-tchoukball-watch-demo>Watch demo</button>
+        <button class="button button--secondary" type="button" data-tchoukball-slow-demo>Slow demo</button>
+        <button class="button button--icon" type="button" data-tchoukball-stop-demo disabled>Stop demo</button>
+        <button class="button button--primary" type="button" data-tchoukball-guided-steps>Guided steps</button>
         <button class="button button--secondary" type="button" data-tchoukball-rules-button>Tchoukball rules</button>
         <button class="button button--icon" type="button" data-boccia-preview-return>Back to Boccia</button>
       </div>
-      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Boccia remains the main playable game. Tchoukball now has lightweight VS CPU and Local 2P foundation previews.</p>
+      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Ready: choose Watch demo, Slow demo, or Guided steps. Demo graphics do not change the real preview score.</p>
     </section>
   `;
 }
@@ -533,6 +538,10 @@ export function setupGameShell(root: HTMLElement): void {
   const replayTutorialButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-replay-tutorial]'));
   const tchoukballPreviewButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tchoukball-preview]'));
   const tchoukballRulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-tchoukball-rules-button]'));
+  const tchoukballWatchDemoButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-watch-demo]');
+  const tchoukballSlowDemoButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-slow-demo]');
+  const tchoukballStopDemoButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-stop-demo]');
+  const tchoukballGuidedStepsButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-guided-steps]');
   const bocciaPreviewReturnButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-boccia-preview-return]'));
   const foundationPreviewStatus = root.querySelector<HTMLElement>('[data-foundation-preview-status]');
   const guidedStartButton = root.querySelector<HTMLButtonElement>('[data-boccia-guided-start]');
@@ -566,6 +575,15 @@ export function setupGameShell(root: HTMLElement): void {
       sportName: 'Boccia',
       onFinish: completeBocciaTutorial,
       onSkip: completeBocciaTutorial,
+    });
+  }
+
+  function openTchoukballGuidedSteps(): void {
+    showTutorialOverlay({
+      steps: tchoukballTutorialSteps,
+      sportName: 'Tchoukball',
+      onFinish: () => markTutorialSeen('tchoukball'),
+      onSkip: () => markTutorialSeen('tchoukball'),
     });
   }
 
@@ -666,6 +684,52 @@ export function setupGameShell(root: HTMLElement): void {
     setLearningStatus(`${speedLabel}: Step ${detail.stepIndex} / ${detail.totalSteps} — ${detail.status}. Ghost graphics do not change the real score.`);
   });
 
+  tchoukballWatchDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+    window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
+    window.dispatchEvent(new CustomEvent('tchoukball:demo-start', { detail: { slow: false } }));
+    markSportPlayed('tchoukball');
+    completeMission('tchoukball_watch_demo');
+  });
+
+  tchoukballSlowDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+    window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
+    window.dispatchEvent(new CustomEvent('tchoukball:demo-start', { detail: { slow: true } }));
+    markSportPlayed('tchoukball');
+    completeMission('tchoukball_watch_demo');
+  });
+
+  tchoukballStopDemoButton?.addEventListener('click', () => {
+    audioManager.playSe('cancel');
+    window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
+  });
+
+  tchoukballGuidedStepsButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
+    window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
+    openTchoukballGuidedSteps();
+    markSportPlayed('tchoukball');
+    foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Guided steps opened: follow the compact Tchoukball frame, charge, rebound, and landing explanation.');
+  });
+
+  window.addEventListener('tchoukball:demo-status', (event) => {
+    const detail = (event as CustomEvent<{ active: boolean; stepIndex: number; totalSteps: number; title: string; status: string; slow: boolean }>).detail;
+    tchoukballWatchDemoButton && (tchoukballWatchDemoButton.disabled = detail.active);
+    tchoukballSlowDemoButton && (tchoukballSlowDemoButton.disabled = detail.active);
+    tchoukballStopDemoButton && (tchoukballStopDemoButton.disabled = !detail.active);
+
+    if (!detail.active) {
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Ready: choose Watch demo, Slow demo, or Guided steps. Demo graphics do not change the real preview score.');
+      return;
+    }
+
+    foundationPreviewStatus && (foundationPreviewStatus.textContent = `${detail.slow ? 'Slow demo' : 'Demo running'}: Step ${detail.stepIndex} / ${detail.totalSteps} — ${detail.status}. Ghost graphics do not change the real preview score.`);
+  });
+
   rulesButtons.forEach((button) => {
     button.addEventListener('click', () => {
       audioManager.playSe('select');
@@ -688,8 +752,10 @@ export function setupGameShell(root: HTMLElement): void {
     button.addEventListener('click', () => {
       audioManager.playSe('select');
       window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+      window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
       window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
       markSportPlayed('tchoukball');
+      completeMission(getMatchState().mode === 'local_2p' ? 'tchoukball_try_local_2p' : 'tchoukball_try_vs_cpu');
       foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Showing Tchoukball foundation preview: VS CPU uses an automatic reply, while Local 2P lets P2 take the reply; no full match flow yet.');
       document.querySelector('#play')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -797,6 +863,7 @@ export function setupGameShell(root: HTMLElement): void {
       setControlHighlight(null);
       window.dispatchEvent(new CustomEvent('boccia:guided-stop'));
       window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+      window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
       setMode(mode);
       if (mode === 'local_2p') {
         completeMission('boccia_try_local_2p');
@@ -856,6 +923,7 @@ export function setupGameShell(root: HTMLElement): void {
 
       if (action === 'retry') {
         window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
+        window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
         audioManager.playSe('select');
         retryMatch();
         window.dispatchEvent(new CustomEvent('boccia:retry'));

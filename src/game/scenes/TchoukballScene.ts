@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audioManager } from '../../audio/audioManager';
 import { inputManager } from '../../input/inputManager';
+import { completeMission } from '../../progress/progressManager';
 import type { InputState } from '../../input/types';
 import { matchManager } from '../match/matchManager';
 import type { Difficulty, MatchMode } from '../types';
@@ -32,6 +33,7 @@ type TchoukballPhase =
 
 type TchoukballLandingResult = 'valid' | 'forbidden_zone' | 'out_of_bounds' | 'missed_frame' | 'none';
 type TchoukballSide = 'player' | 'cpu' | 'p2';
+type TchoukballDemoStep = 'idle' | 'aim' | 'charge' | 'throw' | 'rebound' | 'landing' | 'reply';
 
 interface TchoukballShotState {
   x: number;
@@ -67,6 +69,44 @@ const FORBIDDEN_ZONE_RADIUS = 74;
 const CPU_THINKING_DELAY_MS = 720;
 const PLAYER_LANDING_HOLD_MS = 650;
 const CPU_LANDING_HOLD_MS = 650;
+const DEMO_DURATION_MS = 24000;
+const SLOW_DEMO_DURATION_MS = 36000;
+const DEMO_STEP_COUNT = 6;
+
+const demoStepCopy: Record<TchoukballDemoStep, { title: string; body: string; status: string }> = {
+  idle: { title: '', body: '', status: 'ready' },
+  aim: {
+    title: 'Step 1: Aim at the rebound frame',
+    body: 'Point the throw line toward the angled frame. This ghost demo does not touch the real score.',
+    status: 'aiming at the frame',
+  },
+  charge: {
+    title: 'Step 2: Charge power',
+    body: 'Hold Primary to build power before release.',
+    status: 'charging power',
+  },
+  throw: {
+    title: 'Step 3: Throw to the frame',
+    body: 'Release Primary so the ball travels into the rebound frame.',
+    status: 'throwing to the frame',
+  },
+  rebound: {
+    title: 'Step 4: Rebound back into the court',
+    body: 'After frame contact, the ball bounces back toward open court space.',
+    status: 'showing the rebound path',
+  },
+  landing: {
+    title: 'Step 5: Landing preview',
+    body: 'A landing in bounds and outside the forbidden zone becomes a valid preview.',
+    status: 'checking the landing preview',
+  },
+  reply: {
+    title: 'Step 6: CPU/P2 reply preview',
+    body: 'The CPU or Player 2 gets one reply shot, then the preview score compares valid landings.',
+    status: 'showing the reply preview',
+  },
+};
+
 
 const DEFAULT_SCORING_PREVIEW: TchoukballScoringPreview = {
   label: 'Preview result: waiting for P1 shot',
@@ -87,20 +127,20 @@ const cpuErrorByDifficulty: Record<Difficulty, { aim: number; power: number }> =
 };
 
 const phaseLabels: Record<TchoukballPhase, string> = {
-  player_aiming: 'P1 aiming',
-  player_charging: 'P1 charging',
-  player_flying: 'P1 flying',
-  player_rebounded: 'P1 rebounded',
-  player_landed: 'P1 landed',
-  p2_aiming: 'P2 aiming',
-  p2_charging: 'P2 charging',
-  p2_flying: 'P2 flying',
-  p2_rebounded: 'P2 rebounded',
-  p2_landed: 'P2 landed',
-  cpu_thinking: 'CPU thinking',
-  cpu_flying: 'CPU flying',
-  cpu_rebounded: 'CPU rebounded',
-  cpu_landed: 'CPU landed',
+  player_aiming: 'Aim at rebound frame',
+  player_charging: 'Charge power',
+  player_flying: 'Throw to rebound frame',
+  player_rebounded: 'Rebound back into court',
+  player_landed: 'Landing preview locked',
+  p2_aiming: 'P2 aim at rebound frame',
+  p2_charging: 'P2 charge power',
+  p2_flying: 'P2 throw to frame',
+  p2_rebounded: 'P2 rebound back into court',
+  p2_landed: 'P2 landing preview locked',
+  cpu_thinking: 'CPU reply thinking',
+  cpu_flying: 'CPU throw to frame',
+  cpu_rebounded: 'CPU rebound back into court',
+  cpu_landed: 'CPU landing preview locked',
   preview_result: 'Preview result',
 };
 
@@ -176,8 +216,31 @@ export class TchoukballScene extends Phaser.Scene {
 
   private landingText: Phaser.GameObjects.Text | null = null;
 
+  private demoActive = false;
+
+  private demoSlow = false;
+
+  private demoElapsedMs = 0;
+
+  private demoDurationMs = DEMO_DURATION_MS;
+
+  private demoGraphics: Phaser.GameObjects.Graphics | null = null;
+
+  private demoText: Phaser.GameObjects.Text | null = null;
+
+
   private readonly handleRetryRequest = (): void => {
+    this.stopDemo();
     this.resetInteraction();
+  };
+
+  private readonly handleDemoStartRequest = (event: Event): void => {
+    const detail = (event as CustomEvent<{ slow?: boolean }>).detail;
+    this.startDemo(Boolean(detail?.slow));
+  };
+
+  private readonly handleDemoStopRequest = (): void => {
+    this.stopDemo();
   };
 
   constructor() {
@@ -234,12 +297,16 @@ export class TchoukballScene extends Phaser.Scene {
       this.latestInput = state;
     });
     window.addEventListener('tchoukball:retry', this.handleRetryRequest);
+    window.addEventListener('tchoukball:demo-start', this.handleDemoStartRequest);
+    window.addEventListener('tchoukball:demo-stop', this.handleDemoStopRequest);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cpuTimer?.remove(false);
       this.unsubscribeInput?.();
       this.unsubscribeInput = null;
       window.removeEventListener('tchoukball:retry', this.handleRetryRequest);
+      window.removeEventListener('tchoukball:demo-start', this.handleDemoStartRequest);
+      window.removeEventListener('tchoukball:demo-stop', this.handleDemoStopRequest);
     });
   }
 
@@ -249,8 +316,13 @@ export class TchoukballScene extends Phaser.Scene {
     const currentMode = matchManager.getMatchState().mode;
 
     if (currentMode !== this.activeMode) {
+      this.stopDemo();
       this.activeMode = currentMode;
       this.resetInteraction();
+    }
+
+    if (this.demoActive) {
+      this.updateDemo(delta);
     }
 
     if (this.phase === 'player_aiming' || this.phase === 'player_charging') {
@@ -262,11 +334,13 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'player_aiming' && primaryDown && !this.wasPrimaryDown) {
+      this.stopDemo();
       this.phase = 'player_charging';
       this.charge = 0;
     }
 
     if (this.phase === 'p2_aiming' && primaryDown && !this.wasPrimaryDown) {
+      this.stopDemo();
       this.phase = 'p2_charging';
       this.p2Charge = 0;
     }
@@ -356,6 +430,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.playerShot.vx = Math.cos(aimRadians) * speed;
     this.playerShot.vy = Math.sin(aimRadians) * speed;
     audioManager.playSe('throw');
+    completeMission('tchoukball_first_throw');
   }
 
   private throwCpuBall(): void {
@@ -385,6 +460,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.cpuShot.vx = Math.cos(aimRadians) * speed;
     this.cpuShot.vy = Math.sin(aimRadians) * speed;
     audioManager.playSe('throw');
+    completeMission('tchoukball_first_throw');
   }
 
   private updateShot(delta: number, deltaSeconds: number, side: TchoukballSide): void {
@@ -442,6 +518,7 @@ export class TchoukballScene extends Phaser.Scene {
     shot.vx = Math.cos(angle) * reboundSpeed;
     shot.vy = Math.sin(angle) * reboundSpeed;
     audioManager.playSe('tagHit');
+    completeMission('tchoukball_first_rebound');
   }
 
   private getPlayerLandingPreview(): Point {
@@ -479,6 +556,10 @@ export class TchoukballScene extends Phaser.Scene {
     this.updateScoringPreview();
     this.phase = side === 'player' ? 'player_landed' : side === 'p2' ? 'p2_landed' : 'cpu_landed';
     audioManager.playSe(shot.result === 'valid' ? 'score' : 'fail');
+
+    if (shot.result === 'valid') {
+      completeMission('tchoukball_first_valid_landing');
+    }
 
     if (side === 'player') {
       this.queueOpponentTurn();
@@ -579,10 +660,6 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private getPhaseLabel(): string {
-    if (!this.isLocal2P() && this.phase.startsWith('player')) {
-      return phaseLabels[this.phase].replace('P1', 'Player');
-    }
-
     return phaseLabels[this.phase];
   }
 
@@ -648,6 +725,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.playerShot = createEmptyShotState(this.playerStart);
     this.cpuShot = createEmptyShotState(this.cpuStart);
     this.scoringPreview = { ...DEFAULT_SCORING_PREVIEW };
+    completeMission(this.isLocal2P() ? 'tchoukball_try_local_2p' : 'tchoukball_try_vs_cpu');
   }
 
   private drawInteraction(): void {
@@ -806,7 +884,7 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'player_landed') {
-      return `${this.isLocal2P() ? 'P1' : 'Player'} ${this.getLandingLabel(this.playerShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+      return `${this.isLocal2P() ? 'P1' : 'Player'} landing: ${this.getLandingLabel(this.playerShot.result)}\n${this.scoringPreview.label}`;
     }
 
     if (this.phase === 'cpu_thinking') {
@@ -818,7 +896,7 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'cpu_landed' || this.phase === 'p2_landed') {
-      return `${this.getOpponentLabel()} ${this.getLandingLabel(this.cpuShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+      return `${this.getOpponentLabel()} landing: ${this.getLandingLabel(this.cpuShot.result)}\n${this.scoringPreview.label}`;
     }
 
     if (this.phase === 'preview_result') {
@@ -848,7 +926,7 @@ export class TchoukballScene extends Phaser.Scene {
 
   private getLandingLabel(result: TchoukballLandingResult): string {
     if (result === 'valid') {
-      return 'Valid';
+      return 'Valid preview';
     }
 
     if (result === 'forbidden_zone') {
@@ -911,7 +989,190 @@ export class TchoukballScene extends Phaser.Scene {
       return 'Preview result only. Press Primary or Retry to reset; no full match system yet.';
     }
 
-    return 'Aim with A / D or ← / →. Hold Space / Enter / Primary to charge.';
+    return 'Hit the frame, then land outside the forbidden zone. Aim with A / D or ← / →, hold Primary to charge.';
+  }
+
+  private startDemo(slow: boolean): void {
+    this.demoActive = true;
+    this.demoSlow = slow;
+    this.demoElapsedMs = 0;
+    this.demoDurationMs = slow ? SLOW_DEMO_DURATION_MS : DEMO_DURATION_MS;
+    this.demoGraphics?.clear();
+    this.demoText?.setText('');
+    completeMission('tchoukball_watch_demo');
+    this.updateDemo(0);
+  }
+
+  private stopDemo(): void {
+    if (!this.demoActive && !this.demoGraphics && !this.demoText) {
+      return;
+    }
+
+    this.demoActive = false;
+    this.demoElapsedMs = 0;
+    this.demoGraphics?.clear();
+    this.demoText?.setText('');
+    this.dispatchDemoStatus('idle', false);
+  }
+
+  private updateDemo(deltaMs: number): void {
+    this.demoElapsedMs = (this.demoElapsedMs + deltaMs) % this.demoDurationMs;
+    this.drawDemoOverlay();
+  }
+
+  private getDemoStep(progress: number): TchoukballDemoStep {
+    if (progress < 0.18) return 'aim';
+    if (progress < 0.33) return 'charge';
+    if (progress < 0.48) return 'throw';
+    if (progress < 0.64) return 'rebound';
+    if (progress < 0.8) return 'landing';
+    return 'reply';
+  }
+
+  private getDemoStepIndex(step: TchoukballDemoStep): number {
+    const order: TchoukballDemoStep[] = ['aim', 'charge', 'throw', 'rebound', 'landing', 'reply'];
+    return Math.max(0, order.indexOf(step)) + 1;
+  }
+
+  private dispatchDemoStatus(step: TchoukballDemoStep, active: boolean): void {
+    const copy = demoStepCopy[step];
+
+    window.dispatchEvent(
+      new CustomEvent('tchoukball:demo-status', {
+        detail: {
+          active,
+          step,
+          stepIndex: active ? this.getDemoStepIndex(step) : 0,
+          totalSteps: DEMO_STEP_COUNT,
+          title: copy.title,
+          status: copy.status,
+          slow: this.demoSlow,
+        },
+      }),
+    );
+  }
+
+  private drawDemoOverlay(): void {
+    if (!this.demoGraphics) {
+      this.demoGraphics = this.add.graphics().setDepth(18);
+    }
+
+    if (!this.demoText) {
+      this.demoText = this.add
+        .text(this.court.left + 18, this.court.top + 18, '', {
+          color: '#f8fafc',
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '14px',
+          fontStyle: 'bold',
+          lineSpacing: 4,
+          padding: { x: 12, y: 10 },
+          wordWrap: { width: 300 },
+        })
+        .setDepth(19);
+    }
+
+    const progress = this.demoElapsedMs / this.demoDurationMs;
+    const step = this.getDemoStep(progress);
+    const stepIndex = this.getDemoStepIndex(step);
+    const segmentStart: Record<TchoukballDemoStep, number> = {
+      idle: 0,
+      aim: 0,
+      charge: 0.18,
+      throw: 0.33,
+      rebound: 0.48,
+      landing: 0.64,
+      reply: 0.8,
+    };
+    const segmentEnd: Record<TchoukballDemoStep, number> = {
+      idle: 0,
+      aim: 0.18,
+      charge: 0.33,
+      throw: 0.48,
+      rebound: 0.64,
+      landing: 0.8,
+      reply: 1,
+    };
+    const stepT = Phaser.Math.Clamp((progress - segmentStart[step]) / (segmentEnd[step] - segmentStart[step]), 0, 1);
+    const easedT = Phaser.Math.SmoothStep(stepT, 0, 1);
+    const playerFrameContact = { x: this.playerTargetFrame.x + FRAME_SIZE / 2, y: this.playerTargetFrame.y };
+    const playerLanding = { x: this.court.left + 320, y: this.court.centerY + 92 };
+    const replyFrameContact = { x: this.cpuTargetFrame.x - FRAME_SIZE / 2, y: this.cpuTargetFrame.y };
+    const replyLanding = { x: this.court.right - 330, y: this.court.centerY - 82 };
+    const throwT = step === 'throw' ? easedT : stepIndex > 3 ? 1 : 0;
+    const reboundT = step === 'rebound' ? easedT : stepIndex > 4 ? 1 : 0;
+    const replyT = step === 'reply' ? easedT : 0;
+    const chargeFill = step === 'charge' ? Phaser.Math.Clamp(0.18 + stepT * 0.68, 0, 0.86) : stepIndex > 2 ? 0.78 : 0.16;
+    const ghostX = stepIndex <= 3
+      ? Phaser.Math.Linear(this.playerStart.x, playerFrameContact.x, throwT)
+      : Phaser.Math.Linear(playerFrameContact.x, playerLanding.x, reboundT);
+    const ghostY = stepIndex <= 3
+      ? Phaser.Math.Linear(this.playerStart.y, playerFrameContact.y, throwT)
+      : Phaser.Math.Linear(playerFrameContact.y, playerLanding.y, reboundT);
+    const replyX = replyT < 0.5
+      ? Phaser.Math.Linear(this.cpuStart.x, replyFrameContact.x, replyT * 2)
+      : Phaser.Math.Linear(replyFrameContact.x, replyLanding.x, (replyT - 0.5) * 2);
+    const replyY = replyT < 0.5
+      ? Phaser.Math.Linear(this.cpuStart.y, replyFrameContact.y, replyT * 2)
+      : Phaser.Math.Linear(replyFrameContact.y, replyLanding.y, (replyT - 0.5) * 2);
+    const aimAngle = Phaser.Math.Angle.Between(this.playerStart.x, this.playerStart.y, this.playerTargetFrame.x, this.playerTargetFrame.y);
+    const aimEndX = this.playerStart.x + Math.cos(aimAngle) * 168;
+    const aimEndY = this.playerStart.y + Math.sin(aimAngle) * 168;
+    const meterX = this.court.right - 196;
+    const meterY = this.court.top + 24;
+    const textWidth = Math.min(330, Math.max(250, this.court.width * 0.48));
+    const copy = demoStepCopy[step];
+
+    this.demoGraphics.clear();
+    this.demoGraphics.fillStyle(0x020617, 0.8);
+    this.demoGraphics.fillRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 124, 14);
+    this.demoGraphics.lineStyle(2, 0x7dd3fc, 0.56);
+    this.demoGraphics.strokeRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 124, 14);
+
+    this.demoGraphics.lineStyle(4, 0xfacc15, step === 'aim' ? 1 : 0.45);
+    this.demoGraphics.lineBetween(this.playerStart.x, this.playerStart.y, aimEndX, aimEndY);
+    this.demoGraphics.fillStyle(0xfacc15, 0.9);
+    this.demoGraphics.fillCircle(aimEndX, aimEndY, step === 'aim' ? 12 + Math.sin(stepT * Math.PI * 4) * 3 : 8);
+
+    this.demoGraphics.fillStyle(0x020617, 0.52);
+    this.demoGraphics.fillRoundedRect(meterX, meterY, 156, 14, 7);
+    this.demoGraphics.fillStyle(0xfacc15, 0.82);
+    this.demoGraphics.fillRoundedRect(meterX, meterY, 156 * chargeFill, 14, 7);
+    this.demoGraphics.lineStyle(step === 'charge' ? 4 : 2, 0xfacc15, step === 'charge' ? 0.95 : 0.55);
+    this.demoGraphics.strokeRoundedRect(meterX - 7, meterY - 7, 170, 28, 10);
+
+    this.demoGraphics.lineStyle(3, 0xf97316, step === 'throw' || step === 'rebound' ? 0.9 : 0.4);
+    this.demoGraphics.lineBetween(this.playerStart.x, this.playerStart.y, playerFrameContact.x, playerFrameContact.y);
+    this.demoGraphics.lineStyle(3, 0x84cc16, step === 'rebound' || step === 'landing' ? 0.95 : 0.45);
+    this.demoGraphics.lineBetween(playerFrameContact.x, playerFrameContact.y, playerLanding.x, playerLanding.y);
+
+    this.demoGraphics.fillStyle(0xf97316, 0.62);
+    this.demoGraphics.fillCircle(ghostX, ghostY, BALL_RADIUS + 2);
+    this.demoGraphics.lineStyle(3, 0xffedd5, 0.9);
+    this.demoGraphics.strokeCircle(ghostX, ghostY, BALL_RADIUS + (step === 'throw' || step === 'rebound' ? 8 : 3));
+
+    if (step === 'landing' || step === 'reply') {
+      this.demoGraphics.fillStyle(0x84cc16, 0.24);
+      this.demoGraphics.fillCircle(playerLanding.x, playerLanding.y, 30);
+      this.demoGraphics.lineStyle(4, 0xbef264, 0.95);
+      this.demoGraphics.strokeCircle(playerLanding.x, playerLanding.y, 30 + Math.sin(stepT * Math.PI * 4) * 3);
+    }
+
+    if (step === 'reply') {
+      this.demoGraphics.lineStyle(3, 0x38bdf8, 0.9);
+      this.demoGraphics.lineBetween(this.cpuStart.x, this.cpuStart.y, replyFrameContact.x, replyFrameContact.y);
+      this.demoGraphics.lineStyle(3, 0x93c5fd, 0.8);
+      this.demoGraphics.lineBetween(replyFrameContact.x, replyFrameContact.y, replyLanding.x, replyLanding.y);
+      this.demoGraphics.fillStyle(0x38bdf8, 0.66);
+      this.demoGraphics.fillCircle(replyX, replyY, BALL_RADIUS + 2);
+      this.demoGraphics.lineStyle(3, 0xe0f2fe, 0.92);
+      this.demoGraphics.strokeCircle(replyX, replyY, BALL_RADIUS + 8);
+      this.demoGraphics.strokeRoundedRect(this.court.centerX - 130, this.court.top + 48, 260, 72, 12);
+    }
+
+    this.demoText.setWordWrapWidth(textWidth);
+    this.demoText.setPosition(this.court.left + 18, this.court.top + 18);
+    this.demoText.setText(`${copy.title}\n${copy.body}`);
+    this.dispatchDemoStatus(step, true);
   }
 
   private isPlayerActive(): boolean {
