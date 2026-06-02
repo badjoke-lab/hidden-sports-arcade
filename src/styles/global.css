@@ -1613,3 +1613,39 @@ dd {
     grid-template-rows: auto auto auto 1fr;
   }
 }
+
+.route-error {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 22px;
+  padding: clamp(20px, 4vw, 32px);
+  color: #fee2e2;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.88), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 24px 80px rgba(127, 29, 29, 0.28);
+}
+
+.route-error--game {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+}
+
+.route-error h1,
+.route-error h2,
+.route-error p {
+  margin-bottom: 0;
+}
+
+.route-error p:not(.eyebrow) {
+  color: #fecaca;
+}
+
+.route-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
