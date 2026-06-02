@@ -245,13 +245,13 @@ function renderTchoukballFoundationPanel(): string {
   return `
     <section class="game-shell__panel game-shell__panel--tchoukball" aria-labelledby="tchoukball-foundation-title">
       <p id="tchoukball-foundation-title" class="game-shell__panel-label">Tchoukball foundation</p>
-      <p class="game-shell__learning-copy">Next sport foundation in progress. Preview one player rebound shot, one CPU reply, landing validation, and a simplified comparison.</p>
+      <p class="game-shell__learning-copy">Next sport foundation in progress. Preview one P1 rebound shot, then either a CPU or Local 2P reply, landing validation, and a simplified comparison.</p>
       <div class="game-shell__learning-actions game-shell__learning-actions--foundation" aria-label="Tchoukball foundation controls">
         <button class="button button--primary" type="button" data-tchoukball-preview>Preview foundation</button>
         <button class="button button--secondary" type="button" data-tchoukball-rules-button>Tchoukball rules</button>
         <button class="button button--icon" type="button" data-boccia-preview-return>Back to Boccia</button>
       </div>
-      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Boccia remains the main playable game. Tchoukball now has a lightweight VS CPU foundation preview without Local 2P.</p>
+      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Boccia remains the main playable game. Tchoukball now has lightweight VS CPU and Local 2P foundation previews.</p>
     </section>
   `;
 }
@@ -690,7 +690,7 @@ export function setupGameShell(root: HTMLElement): void {
       window.dispatchEvent(new CustomEvent('boccia:demo-stop'));
       window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
       markSportPlayed('tchoukball');
-      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Showing Tchoukball VS CPU foundation preview: player shot, CPU reply, and simplified comparison; no Local 2P or full match flow yet.');
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Showing Tchoukball foundation preview: VS CPU uses an automatic reply, while Local 2P lets P2 take the reply; no full match flow yet.');
       document.querySelector('#play')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
@@ -699,7 +699,7 @@ export function setupGameShell(root: HTMLElement): void {
     button.addEventListener('click', () => {
       audioManager.playSe('select');
       window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'boccia' } }));
-      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Back to Boccia. Tchoukball remains a VS CPU foundation preview without full match flow.');
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Back to Boccia. Tchoukball remains a lightweight VS CPU / Local 2P foundation preview without full match flow.');
     });
   });
 
