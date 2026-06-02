@@ -1,4 +1,4 @@
-export type SportStatus = 'active' | 'coming-soon';
+export type SportStatus = 'active' | 'foundation' | 'coming-soon';
 
 export type SportDifficulty = 'easy' | 'medium' | 'hard';
 
@@ -38,10 +38,10 @@ export const sports: Sport[] = [
     id: 'tchoukball',
     name: 'Tchoukball',
     summary:
-      'A fast rebound-net team sport built around creative angles and non-contact attacking play.',
+      'Next sport foundation in progress. A fast rebound-net team sport built around creative angles and non-contact attacking play.',
     tags: ['Team', 'Rebound', 'Non-contact'],
-    status: 'coming-soon',
-    matchLength: '4–6 min arcade match',
+    status: 'foundation',
+    matchLength: 'Foundation preview only',
     difficulty: 'medium',
     templateType: 'net-rally',
   },
