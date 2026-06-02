@@ -114,11 +114,6 @@ const DEFAULT_SCORING_PREVIEW: TchoukballScoringPreview = {
   cpuPreviewScore: 0,
 };
 
-const difficultyLabels: Record<Difficulty, string> = {
-  easy: 'Easy',
-  normal: 'Normal',
-  hard: 'Hard',
-};
 
 const cpuErrorByDifficulty: Record<Difficulty, { aim: number; power: number }> = {
   easy: { aim: 0.35, power: 0.3 },
@@ -283,13 +278,13 @@ export class TchoukballScene extends Phaser.Scene {
     this.drawLabels(courtX, courtY, centerX, centerY);
 
     this.dynamicGraphics = this.add.graphics();
-    this.phaseText = this.add.text(courtX + 18, courtY + COURT_HEIGHT - 82, '', this.labelStyle()).setOrigin(0, 0.5);
+    this.phaseText = this.add.text(courtX + 18, courtY + 18, '', this.cornerStatusStyle()).setOrigin(0, 0);
     this.hintText = this.add.text(centerX, courtY + COURT_HEIGHT - 28, '', this.labelStyle()).setOrigin(0.5);
     this.landingText = this.add.text(centerX, courtY + 70, '', {
       align: 'center',
       color: '#fed7aa',
       fontFamily: 'Inter, sans-serif',
-      fontSize: '15px',
+      fontSize: '13px',
       fontStyle: 'bold',
     }).setOrigin(0.5).setVisible(false);
 
@@ -651,9 +646,6 @@ export class TchoukballScene extends Phaser.Scene {
     return this.activeMode === 'local_2p';
   }
 
-  private getModeLabel(): string {
-    return this.isLocal2P() ? 'Local 2P' : 'VS CPU';
-  }
 
   private getOpponentLabel(): string {
     return this.isLocal2P() ? 'P2' : 'CPU';
@@ -742,8 +734,6 @@ export class TchoukballScene extends Phaser.Scene {
     const p2AimLength = 136 + this.p2Charge * 52;
     const p2AimEndX = this.cpuStart.x + Math.cos(p2AimRadians) * p2AimLength;
     const p2AimEndY = this.cpuStart.y + Math.sin(p2AimRadians) * p2AimLength;
-    const difficulty = difficultyLabels[matchManager.getMatchState().difficulty];
-
     graphics.clear();
 
     graphics.lineStyle(4, 0xfacc15, this.isPlayerActive() ? 0.95 : 0.34);
@@ -777,17 +767,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.drawShotGraphic(graphics, this.playerShot, 0xf97316, 0xffedd5);
     this.drawShotGraphic(graphics, this.cpuShot, 0x38bdf8, 0xe0f2fe);
 
-    this.phaseText.setText(
-      [
-        `Mode: ${this.getModeLabel()}`,
-        `Turn: ${this.getTurnLabel()}`,
-        `Phase: ${this.getPhaseLabel()}`,
-        this.isLocal2P() ? null : `CPU difficulty: ${difficulty}`,
-        `Preview score: ${this.getScoreLine()}`,
-        `${this.isLocal2P() ? 'P1' : 'Player'} landing: ${this.getLandingLabel(this.playerShot.result)}`,
-        `${this.getOpponentLabel()} landing: ${this.getLandingLabel(this.cpuShot.result)}`,
-      ].filter((line): line is string => line !== null).join('\n'),
-    );
+    this.phaseText.setText(`${this.getTurnLabel()} · ${this.getPhaseLabel()} · ${this.getScoreLine()}`);
     this.hintText.setText(this.getHintText());
     this.landingText
       .setText(this.getLandingPreviewText())
@@ -884,11 +864,11 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'player_landed') {
-      return `${this.isLocal2P() ? 'P1' : 'Player'} landing: ${this.getLandingLabel(this.playerShot.result)}\n${this.scoringPreview.label}`;
+      return `${this.isLocal2P() ? 'P1' : 'Player'}: ${this.getLandingLabel(this.playerShot.result)}`;
     }
 
     if (this.phase === 'cpu_thinking') {
-      return 'CPU thinking — automatic reply incoming';
+      return 'CPU reply incoming';
     }
 
     if (this.phase === 'cpu_rebounded' || this.phase === 'p2_rebounded') {
@@ -896,7 +876,7 @@ export class TchoukballScene extends Phaser.Scene {
     }
 
     if (this.phase === 'cpu_landed' || this.phase === 'p2_landed') {
-      return `${this.getOpponentLabel()} landing: ${this.getLandingLabel(this.cpuShot.result)}\n${this.scoringPreview.label}`;
+      return `${this.getOpponentLabel()}: ${this.getLandingLabel(this.cpuShot.result)}`;
     }
 
     if (this.phase === 'preview_result') {
@@ -946,50 +926,50 @@ export class TchoukballScene extends Phaser.Scene {
 
   private getHintText(): string {
     if (this.phase === 'player_charging' || this.phase === 'p2_charging') {
-      return 'Charging power — release Space / Enter / Primary to throw';
+      return 'Release Primary to throw.';
     }
 
     if (this.phase === 'player_flying') {
-      return `${this.isLocal2P() ? 'P1' : 'Player'} shot flying toward the rebound frame`;
+      return `${this.isLocal2P() ? 'P1' : 'Player'} shot to frame.`;
     }
 
     if (this.phase === 'p2_flying') {
-      return 'P2 shot flying toward the opposite rebound frame';
+      return 'P2 shot to frame.';
     }
 
     if (this.phase === 'player_rebounded') {
-      return `${this.isLocal2P() ? 'P1' : 'Player'} rebound — previewing the landing zone`;
+      return `${this.isLocal2P() ? 'P1' : 'Player'} rebound landing.`;
     }
 
     if (this.phase === 'p2_rebounded') {
-      return 'P2 rebound — previewing the landing zone';
+      return 'P2 rebound landing.';
     }
 
     if (this.phase === 'player_landed') {
-      return this.isLocal2P() ? 'P1 preview locked. P2 can take one local rebound shot.' : 'Player preview locked. CPU will take one automatic rebound shot.';
+      return this.isLocal2P() ? 'P1 locked. P2 reply next.' : 'P1 locked. CPU reply next.';
     }
 
     if (this.phase === 'cpu_thinking') {
-      return 'Player preview locked. CPU will take one automatic rebound shot.';
+      return 'P1 locked. CPU reply next.';
     }
 
     if (this.phase === 'cpu_flying') {
-      return 'CPU shot is flying toward the opposite rebound frame';
+      return 'CPU shot to frame.';
     }
 
     if (this.phase === 'cpu_rebounded') {
-      return 'CPU rebound — previewing its landing zone';
+      return 'CPU rebound landing.';
     }
 
     if (this.phase === 'cpu_landed' || this.phase === 'p2_landed') {
-      return `${this.getOpponentLabel()} preview locked. Building preview score comparison.`;
+      return `${this.getOpponentLabel()} locked. Preview score ready.`;
     }
 
     if (this.phase === 'preview_result') {
-      return 'Preview result only. Press Primary or Retry to reset; no full match system yet.';
+      return 'Preview result. Press Primary or Retry.';
     }
 
-    return 'Hit the frame, then land outside the forbidden zone. Aim with A / D or ← / →, hold Primary to charge.';
+    return 'Hit frame; land outside forbidden zone.';
   }
 
   private startDemo(slow: boolean): void {
@@ -1062,7 +1042,7 @@ export class TchoukballScene extends Phaser.Scene {
         .text(this.court.left + 18, this.court.top + 18, '', {
           color: '#f8fafc',
           fontFamily: 'Inter, sans-serif',
-          fontSize: '14px',
+          fontSize: '12px',
           fontStyle: 'bold',
           lineSpacing: 4,
           padding: { x: 12, y: 10 },
@@ -1252,11 +1232,11 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, 52, 'VS CPU or Local 2P rebound shots, landing classification, and preview comparison — no full rules yet', {
+    this.add.text(centerX, 52, 'Hit the frame, then land outside the forbidden zone.', {
       align: 'center',
       color: '#bae6fd',
       fontFamily: 'Inter, sans-serif',
-      fontSize: '14px',
+      fontSize: '12px',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
@@ -1264,6 +1244,15 @@ export class TchoukballScene extends Phaser.Scene {
     this.add.text(courtX + COURT_WIDTH - 28, courtY + 12, 'P2 / CPU target frame', this.labelStyle()).setOrigin(1, 0);
     this.add.text(courtX + 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
     this.add.text(courtX + COURT_WIDTH - 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
+  }
+
+  private cornerStatusStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+    return {
+      color: '#bae6fd',
+      fontFamily: 'Inter, sans-serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+    };
   }
 
   private labelStyle(): Phaser.Types.GameObjects.Text.TextStyle {
