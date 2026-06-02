@@ -32,7 +32,7 @@ export function SportsGrid(sports: Sport[]): string {
           <p class="eyebrow">Sports list</p>
           <h2 id="sports-title">Choose a sport</h2>
         </div>
-        <p class="section-heading__note">One active shell now, more rulebooks queued next.</p>
+        <p class="section-heading__note">Dedicated pages keep each sport's UI and rules separate.</p>
       </div>
       ${renderProgressOverview(sports, progress)}
       <div class="sports__grid">
