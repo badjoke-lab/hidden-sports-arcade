@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { audioManager } from '../../audio/audioManager';
 import { inputManager } from '../../input/inputManager';
 import type { InputState } from '../../input/types';
+import { matchManager } from '../match/matchManager';
+import type { Difficulty } from '../types';
 import {
   BALL_RADIUS,
   COURT_HEIGHT,
@@ -11,24 +13,41 @@ import {
   ZONE_COLORS,
 } from '../sports/tchoukball/tchoukballConfig';
 
-type TchoukballPhase = 'aiming' | 'charging' | 'flying' | 'rebounded' | 'landed';
+type TchoukballPhase =
+  | 'player_aiming'
+  | 'player_charging'
+  | 'player_flying'
+  | 'player_rebounded'
+  | 'player_landed'
+  | 'cpu_thinking'
+  | 'cpu_flying'
+  | 'cpu_rebounded'
+  | 'cpu_landed'
+  | 'preview_result';
 
 type TchoukballLandingResult = 'valid' | 'forbidden_zone' | 'out_of_bounds' | 'missed_frame' | 'none';
+type TchoukballSide = 'player' | 'cpu';
+
+interface TchoukballShotState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  hasHitFrame: boolean;
+  landingX: number | null;
+  landingY: number | null;
+  result: TchoukballLandingResult;
+}
 
 interface TchoukballScoringPreview {
-  result: TchoukballLandingResult;
   label: string;
   playerPreviewScore: number;
+  cpuPreviewScore: number;
 }
 
 type Point = {
   x: number;
   y: number;
-};
-
-type BallState = Point & {
-  vx: number;
-  vy: number;
 };
 
 const AIM_MIN_DEGREES = 154;
@@ -40,14 +59,56 @@ const MAX_THROW_SPEED = 560;
 const REBOUND_SPEED_MULTIPLIER = 0.78;
 const LAND_AFTER_REBOUND_MS = 880;
 const FORBIDDEN_ZONE_RADIUS = 74;
+const CPU_THINKING_DELAY_MS = 720;
+const PLAYER_LANDING_HOLD_MS = 650;
+const CPU_LANDING_HOLD_MS = 650;
+
 const DEFAULT_SCORING_PREVIEW: TchoukballScoringPreview = {
-  result: 'none',
-  label: 'Preview result: No point',
+  label: 'Preview result: waiting for player shot',
   playerPreviewScore: 0,
+  cpuPreviewScore: 0,
+};
+
+const difficultyLabels: Record<Difficulty, string> = {
+  easy: 'Easy',
+  normal: 'Normal',
+  hard: 'Hard',
+};
+
+const cpuErrorByDifficulty: Record<Difficulty, { aim: number; power: number }> = {
+  easy: { aim: 0.35, power: 0.3 },
+  normal: { aim: 0.2, power: 0.18 },
+  hard: { aim: 0.1, power: 0.1 },
+};
+
+const phaseLabels: Record<TchoukballPhase, string> = {
+  player_aiming: 'Player aiming',
+  player_charging: 'Player charging',
+  player_flying: 'Player flying',
+  player_rebounded: 'Player rebounded',
+  player_landed: 'Player landed',
+  cpu_thinking: 'CPU thinking',
+  cpu_flying: 'CPU flying',
+  cpu_rebounded: 'CPU rebounded',
+  cpu_landed: 'CPU landed',
+  preview_result: 'Preview result',
 };
 
 function color(hex: string): number {
   return Phaser.Display.Color.HexStringToColor(hex).color;
+}
+
+function createEmptyShotState(start: Point): TchoukballShotState {
+  return {
+    x: start.x,
+    y: start.y,
+    vx: 0,
+    vy: 0,
+    hasHitFrame: false,
+    landingX: null,
+    landingY: null,
+    result: 'none',
+  };
 }
 
 export class TchoukballScene extends Phaser.Scene {
@@ -55,21 +116,31 @@ export class TchoukballScene extends Phaser.Scene {
 
   private playerStart: Point = { x: 0, y: 0 };
 
-  private targetFrame: Point = { x: 0, y: 0 };
+  private cpuStart: Point = { x: 0, y: 0 };
 
-  private reboundFrameBounds = new Phaser.Geom.Rectangle(0, 0, FRAME_SIZE + 24, FRAME_SIZE + 44);
+  private playerTargetFrame: Point = { x: 0, y: 0 };
 
-  private ball: BallState = { x: 0, y: 0, vx: 0, vy: 0 };
+  private cpuTargetFrame: Point = { x: 0, y: 0 };
 
-  private landingPreview: Point | null = null;
+  private playerFrameBounds = new Phaser.Geom.Rectangle(0, 0, FRAME_SIZE + 24, FRAME_SIZE + 44);
+
+  private cpuFrameBounds = new Phaser.Geom.Rectangle(0, 0, FRAME_SIZE + 24, FRAME_SIZE + 44);
+
+  private playerShot: TchoukballShotState = createEmptyShotState({ x: 0, y: 0 });
+
+  private cpuShot: TchoukballShotState = createEmptyShotState({ x: 0, y: 0 });
 
   private scoringPreview: TchoukballScoringPreview = { ...DEFAULT_SCORING_PREVIEW };
 
-  private phase: TchoukballPhase = 'aiming';
+  private phase: TchoukballPhase = 'player_aiming';
 
   private aimDegrees = 180;
 
   private charge = 0;
+
+  private cpuCharge = 0.58;
+
+  private cpuAimDegrees = 0;
 
   private reboundElapsedMs = 0;
 
@@ -79,6 +150,8 @@ export class TchoukballScene extends Phaser.Scene {
 
   private unsubscribeInput: (() => void) | null = null;
 
+  private cpuTimer: Phaser.Time.TimerEvent | null = null;
+
   private dynamicGraphics: Phaser.GameObjects.Graphics | null = null;
 
   private phaseText: Phaser.GameObjects.Text | null = null;
@@ -86,6 +159,10 @@ export class TchoukballScene extends Phaser.Scene {
   private hintText: Phaser.GameObjects.Text | null = null;
 
   private landingText: Phaser.GameObjects.Text | null = null;
+
+  private readonly handleRetryRequest = (): void => {
+    this.resetInteraction();
+  };
 
   constructor() {
     super('TchoukballScene');
@@ -100,21 +177,12 @@ export class TchoukballScene extends Phaser.Scene {
 
     this.court.setTo(courtX, courtY, COURT_WIDTH, COURT_HEIGHT);
     this.playerStart = { x: courtX + COURT_WIDTH - 190, y: centerY + 42 };
-    this.targetFrame = { x: courtX + 34, y: centerY };
-    this.reboundFrameBounds.setTo(
-      this.targetFrame.x - (FRAME_SIZE + 34) / 2,
-      this.targetFrame.y - (FRAME_SIZE + 54) / 2,
-      FRAME_SIZE + 34,
-      FRAME_SIZE + 54,
-    );
-    const frameAimDegrees = Phaser.Math.RadToDeg(
-      Phaser.Math.Angle.Between(this.playerStart.x, this.playerStart.y, this.targetFrame.x, this.targetFrame.y),
-    );
-    this.aimDegrees = Phaser.Math.Clamp(
-      frameAimDegrees < 0 ? frameAimDegrees + 360 : frameAimDegrees,
-      AIM_MIN_DEGREES,
-      AIM_MAX_DEGREES,
-    );
+    this.cpuStart = { x: courtX + 190, y: centerY - 42 };
+    this.playerTargetFrame = { x: courtX + 34, y: centerY };
+    this.cpuTargetFrame = { x: courtX + COURT_WIDTH - 34, y: centerY };
+    this.setFrameBounds(this.playerFrameBounds, this.playerTargetFrame);
+    this.setFrameBounds(this.cpuFrameBounds, this.cpuTargetFrame);
+    this.aimDegrees = this.clampedPlayerFrameAim();
     this.resetInteraction();
 
     graphics.fillStyle(color(ZONE_COLORS.court), 1);
@@ -136,7 +204,7 @@ export class TchoukballScene extends Phaser.Scene {
     this.drawLabels(courtX, courtY, centerX, centerY);
 
     this.dynamicGraphics = this.add.graphics();
-    this.phaseText = this.add.text(courtX + 18, courtY + COURT_HEIGHT - 70, '', this.labelStyle()).setOrigin(0, 0.5);
+    this.phaseText = this.add.text(courtX + 18, courtY + COURT_HEIGHT - 82, '', this.labelStyle()).setOrigin(0, 0.5);
     this.hintText = this.add.text(centerX, courtY + COURT_HEIGHT - 28, '', this.labelStyle()).setOrigin(0.5);
     this.landingText = this.add.text(centerX, courtY + 70, '', {
       align: 'center',
@@ -149,10 +217,13 @@ export class TchoukballScene extends Phaser.Scene {
     this.unsubscribeInput = inputManager.subscribe((state) => {
       this.latestInput = state;
     });
+    window.addEventListener('tchoukball:retry', this.handleRetryRequest);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.cpuTimer?.remove(false);
       this.unsubscribeInput?.();
       this.unsubscribeInput = null;
+      window.removeEventListener('tchoukball:retry', this.handleRetryRequest);
     });
   }
 
@@ -160,33 +231,49 @@ export class TchoukballScene extends Phaser.Scene {
     const deltaSeconds = delta / 1000;
     const primaryDown = this.latestInput.primary;
 
-    if (this.phase === 'aiming' || this.phase === 'charging') {
+    if (this.phase === 'player_aiming' || this.phase === 'player_charging') {
       this.updateAim(deltaSeconds);
     }
 
-    if (this.phase === 'aiming' && primaryDown && !this.wasPrimaryDown) {
-      this.phase = 'charging';
+    if (this.phase === 'player_aiming' && primaryDown && !this.wasPrimaryDown) {
+      this.phase = 'player_charging';
       this.charge = 0;
     }
 
-    if (this.phase === 'charging') {
+    if (this.phase === 'player_charging') {
       this.charge = Math.min(1, this.charge + deltaSeconds * CHARGE_PER_SECOND);
 
       if (!primaryDown && this.wasPrimaryDown) {
-        this.throwBall();
+        this.throwPlayerBall();
       }
     }
 
-    if (this.phase === 'flying' || this.phase === 'rebounded') {
-      this.updateBall(delta, deltaSeconds);
+    if (this.phase === 'player_flying' || this.phase === 'player_rebounded') {
+      this.updateShot(delta, deltaSeconds, 'player');
     }
 
-    if (this.phase === 'landed' && primaryDown && !this.wasPrimaryDown) {
+    if (this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded') {
+      this.updateShot(delta, deltaSeconds, 'cpu');
+    }
+
+    if (this.phase === 'preview_result' && primaryDown && !this.wasPrimaryDown) {
       this.resetInteraction();
     }
 
     this.wasPrimaryDown = primaryDown;
     this.drawInteraction();
+  }
+
+  private setFrameBounds(bounds: Phaser.Geom.Rectangle, frame: Point): void {
+    bounds.setTo(frame.x - (FRAME_SIZE + 34) / 2, frame.y - (FRAME_SIZE + 54) / 2, FRAME_SIZE + 34, FRAME_SIZE + 54);
+  }
+
+  private clampedPlayerFrameAim(): number {
+    const frameAimDegrees = Phaser.Math.RadToDeg(
+      Phaser.Math.Angle.Between(this.playerStart.x, this.playerStart.y, this.playerTargetFrame.x, this.playerTargetFrame.y),
+    );
+
+    return Phaser.Math.Clamp(frameAimDegrees < 0 ? frameAimDegrees + 360 : frameAimDegrees, AIM_MIN_DEGREES, AIM_MAX_DEGREES);
   }
 
   private updateAim(deltaSeconds: number): void {
@@ -203,27 +290,46 @@ export class TchoukballScene extends Phaser.Scene {
     );
   }
 
-  private throwBall(): void {
+  private throwPlayerBall(): void {
     const aimRadians = Phaser.Math.DegToRad(this.aimDegrees);
     const speed = Phaser.Math.Linear(MIN_THROW_SPEED, MAX_THROW_SPEED, this.charge);
 
-    this.phase = 'flying';
-    this.landingPreview = null;
+    this.phase = 'player_flying';
     this.scoringPreview = { ...DEFAULT_SCORING_PREVIEW };
-    this.ball.vx = Math.cos(aimRadians) * speed;
-    this.ball.vy = Math.sin(aimRadians) * speed;
+    this.playerShot.vx = Math.cos(aimRadians) * speed;
+    this.playerShot.vy = Math.sin(aimRadians) * speed;
     audioManager.playSe('throw');
   }
 
-  private updateBall(delta: number, deltaSeconds: number): void {
-    this.ball.x += this.ball.vx * deltaSeconds;
-    this.ball.y += this.ball.vy * deltaSeconds;
+  private throwCpuBall(): void {
+    const difficulty = matchManager.getMatchState().difficulty;
+    const error = cpuErrorByDifficulty[difficulty];
+    const baseAimRadians = Phaser.Math.Angle.Between(this.cpuStart.x, this.cpuStart.y, this.cpuTargetFrame.x, this.cpuTargetFrame.y);
+    const aimRadians = baseAimRadians + Phaser.Math.FloatBetween(-error.aim, error.aim);
+    const baseCharge = Phaser.Math.Clamp(0.56 + Phaser.Math.FloatBetween(-error.power, error.power), 0.16, 0.92);
+    const speed = Phaser.Math.Linear(MIN_THROW_SPEED, MAX_THROW_SPEED, baseCharge);
 
-    if (this.phase === 'flying') {
-      if (Phaser.Geom.Rectangle.Contains(this.reboundFrameBounds, this.ball.x, this.ball.y)) {
-        this.reboundBall();
-      } else if (this.ball.x < this.court.left - 28 || this.ball.y < this.court.top - 28 || this.ball.y > this.court.bottom + 28) {
-        this.landMissedFrame();
+    this.cpuCharge = baseCharge;
+    this.cpuAimDegrees = Phaser.Math.RadToDeg(aimRadians);
+    this.cpuShot = createEmptyShotState(this.cpuStart);
+    this.phase = 'cpu_flying';
+    this.cpuShot.vx = Math.cos(aimRadians) * speed;
+    this.cpuShot.vy = Math.sin(aimRadians) * speed;
+    audioManager.playSe('throw');
+  }
+
+  private updateShot(delta: number, deltaSeconds: number, side: TchoukballSide): void {
+    const shot = this.getShot(side);
+    const frameBounds = side === 'player' ? this.playerFrameBounds : this.cpuFrameBounds;
+
+    shot.x += shot.vx * deltaSeconds;
+    shot.y += shot.vy * deltaSeconds;
+
+    if (!shot.hasHitFrame) {
+      if (Phaser.Geom.Rectangle.Contains(frameBounds, shot.x, shot.y)) {
+        this.reboundShot(side);
+      } else if (this.hasMissedFrame(shot, side)) {
+        this.landMissedFrame(side);
       }
 
       return;
@@ -233,64 +339,141 @@ export class TchoukballScene extends Phaser.Scene {
 
     if (
       this.reboundElapsedMs >= LAND_AFTER_REBOUND_MS ||
-      this.ball.x >= this.court.right - 78 ||
-      this.ball.y <= this.court.top + 28 ||
-      this.ball.y >= this.court.bottom - 28
+      shot.x <= this.court.left + 28 ||
+      shot.x >= this.court.right - 28 ||
+      shot.y <= this.court.top + 28 ||
+      shot.y >= this.court.bottom - 28
     ) {
-      this.landBall();
+      this.landShot(side);
     }
   }
 
-  private reboundBall(): void {
-    const incomingSpeed = Math.max(MIN_THROW_SPEED, Math.hypot(this.ball.vx, this.ball.vy));
-    const landingX = this.court.left + 70 + this.charge * 360;
-    const landingY = this.court.centerY + (this.aimDegrees - 180) * 6.6;
-    const angle = Phaser.Math.Angle.Between(this.ball.x, this.ball.y, landingX, landingY);
+  private hasMissedFrame(shot: TchoukballShotState, side: TchoukballSide): boolean {
+    if (side === 'player') {
+      return shot.x < this.court.left - 28 || shot.y < this.court.top - 28 || shot.y > this.court.bottom + 28;
+    }
+
+    return shot.x > this.court.right + 28 || shot.y < this.court.top - 28 || shot.y > this.court.bottom + 28;
+  }
+
+  private reboundShot(side: TchoukballSide): void {
+    const shot = this.getShot(side);
+    const incomingSpeed = Math.max(MIN_THROW_SPEED, Math.hypot(shot.vx, shot.vy));
+    const landingPoint = side === 'player' ? this.getPlayerLandingPreview() : this.getCpuLandingPreview();
+    const angle = Phaser.Math.Angle.Between(shot.x, shot.y, landingPoint.x, landingPoint.y);
     const reboundSpeed = incomingSpeed * REBOUND_SPEED_MULTIPLIER;
 
-    this.phase = 'rebounded';
+    shot.hasHitFrame = true;
+    shot.landingX = landingPoint.x;
+    shot.landingY = landingPoint.y;
+    shot.result = 'none';
+    this.phase = side === 'player' ? 'player_rebounded' : 'cpu_rebounded';
     this.reboundElapsedMs = 0;
-    this.landingPreview = { x: landingX, y: landingY };
-    this.ball.x = Math.max(this.ball.x, this.targetFrame.x + FRAME_SIZE / 2);
-    this.ball.vx = Math.cos(angle) * reboundSpeed;
-    this.ball.vy = Math.sin(angle) * reboundSpeed;
+    shot.x = side === 'player' ? Math.max(shot.x, this.playerTargetFrame.x + FRAME_SIZE / 2) : Math.min(shot.x, this.cpuTargetFrame.x - FRAME_SIZE / 2);
+    shot.vx = Math.cos(angle) * reboundSpeed;
+    shot.vy = Math.sin(angle) * reboundSpeed;
     audioManager.playSe('tagHit');
   }
 
-  private landBall(): void {
-    if (this.landingPreview) {
-      this.ball.x = this.landingPreview.x;
-      this.ball.y = this.landingPreview.y;
-      this.scoringPreview = this.buildScoringPreview(this.landingPreview);
+  private getPlayerLandingPreview(): Point {
+    return {
+      x: this.court.left + 70 + this.charge * 360,
+      y: this.court.centerY + (this.aimDegrees - 180) * 6.6,
+    };
+  }
+
+  private getCpuLandingPreview(): Point {
+    return {
+      x: this.court.right - 70 - this.cpuCharge * 360,
+      y: this.court.centerY + this.cpuAimDegrees * 6.6,
+    };
+  }
+
+  private landShot(side: TchoukballSide): void {
+    const shot = this.getShot(side);
+
+    if (shot.landingX !== null && shot.landingY !== null) {
+      shot.x = shot.landingX;
+      shot.y = shot.landingY;
+      shot.result = this.getLandingResult({ x: shot.landingX, y: shot.landingY });
     }
 
-    this.ball.vx = 0;
-    this.ball.vy = 0;
-    this.phase = 'landed';
-    audioManager.playSe(this.scoringPreview.result === 'valid' ? 'score' : 'fail');
+    shot.vx = 0;
+    shot.vy = 0;
+    this.updateScoringPreview();
+    this.phase = side === 'player' ? 'player_landed' : 'cpu_landed';
+    audioManager.playSe(shot.result === 'valid' ? 'score' : 'fail');
+
+    if (side === 'player') {
+      this.queueCpuThinking();
+    } else {
+      this.cpuTimer = this.time.delayedCall(CPU_LANDING_HOLD_MS, () => this.showPreviewResult());
+    }
   }
 
-  private landMissedFrame(): void {
-    this.ball.vx = 0;
-    this.ball.vy = 0;
-    this.phase = 'landed';
-    this.landingPreview = null;
-    this.scoringPreview = {
-      result: 'missed_frame',
-      label: 'Preview result: No point',
-      playerPreviewScore: 0,
-    };
+  private landMissedFrame(side: TchoukballSide): void {
+    const shot = this.getShot(side);
+
+    shot.vx = 0;
+    shot.vy = 0;
+    shot.hasHitFrame = false;
+    shot.landingX = null;
+    shot.landingY = null;
+    shot.result = 'missed_frame';
+    this.updateScoringPreview();
+    this.phase = side === 'player' ? 'player_landed' : 'cpu_landed';
     audioManager.playSe('fail');
+
+    if (side === 'player') {
+      this.queueCpuThinking();
+    } else {
+      this.cpuTimer = this.time.delayedCall(CPU_LANDING_HOLD_MS, () => this.showPreviewResult());
+    }
   }
 
-  private buildScoringPreview(point: Point): TchoukballScoringPreview {
-    const result = this.getLandingResult(point);
+  private queueCpuThinking(): void {
+    this.cpuTimer?.remove(false);
+    this.cpuTimer = this.time.delayedCall(PLAYER_LANDING_HOLD_MS, () => {
+      this.phase = 'cpu_thinking';
+      this.cpuTimer = this.time.delayedCall(CPU_THINKING_DELAY_MS, () => this.throwCpuBall());
+    });
+  }
 
-    return {
-      result,
-      label: result === 'valid' ? 'Preview result: Player +1' : 'Preview result: No point',
-      playerPreviewScore: result === 'valid' ? 1 : 0,
+  private showPreviewResult(): void {
+    this.phase = 'preview_result';
+    this.updateScoringPreview();
+    audioManager.playSe(this.scoringPreview.playerPreviewScore > this.scoringPreview.cpuPreviewScore ? 'score' : 'select');
+  }
+
+  private updateScoringPreview(): void {
+    const playerScore = this.playerShot.result === 'valid' ? 1 : 0;
+    const cpuScore = this.cpuShot.result === 'valid' ? 1 : 0;
+
+    this.scoringPreview = {
+      label: this.buildPreviewLabel(playerScore, cpuScore),
+      playerPreviewScore: playerScore,
+      cpuPreviewScore: cpuScore,
     };
+  }
+
+  private buildPreviewLabel(playerScore: number, cpuScore: number): string {
+    if (this.phase === 'preview_result' || this.cpuShot.result !== 'none') {
+      return `Preview result: Player ${playerScore} - ${cpuScore} CPU`;
+    }
+
+    if (this.playerShot.result === 'valid') {
+      return 'Preview result: Player +1; CPU reply pending';
+    }
+
+    if (this.playerShot.result !== 'none') {
+      return 'Preview result: Player no point; CPU reply pending';
+    }
+
+    return DEFAULT_SCORING_PREVIEW.label;
+  }
+
+  private getShot(side: TchoukballSide): TchoukballShotState {
+    return side === 'player' ? this.playerShot : this.cpuShot;
   }
 
   private getLandingResult(point: Point): TchoukballLandingResult {
@@ -316,12 +499,16 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private resetInteraction(): void {
-    this.phase = 'aiming';
+    this.cpuTimer?.remove(false);
+    this.cpuTimer = null;
+    this.phase = 'player_aiming';
     this.charge = 0;
+    this.cpuCharge = 0.58;
     this.reboundElapsedMs = 0;
-    this.landingPreview = null;
+    this.aimDegrees = this.clampedPlayerFrameAim();
+    this.playerShot = createEmptyShotState(this.playerStart);
+    this.cpuShot = createEmptyShotState(this.cpuStart);
     this.scoringPreview = { ...DEFAULT_SCORING_PREVIEW };
-    this.ball = { x: this.playerStart.x, y: this.playerStart.y, vx: 0, vy: 0 };
   }
 
   private drawInteraction(): void {
@@ -334,130 +521,79 @@ export class TchoukballScene extends Phaser.Scene {
     const aimLength = 136 + this.charge * 52;
     const aimEndX = this.playerStart.x + Math.cos(aimRadians) * aimLength;
     const aimEndY = this.playerStart.y + Math.sin(aimRadians) * aimLength;
-    const phaseLabel = this.phase === 'landed' ? 'Landed' : this.phase[0].toUpperCase() + this.phase.slice(1);
+    const difficulty = difficultyLabels[matchManager.getMatchState().difficulty];
 
     graphics.clear();
 
-    graphics.lineStyle(4, 0xfacc15, this.phase === 'flying' || this.phase === 'rebounded' ? 0.38 : 0.95);
+    graphics.lineStyle(4, 0xfacc15, this.isPlayerActive() ? 0.95 : 0.34);
     graphics.beginPath();
     graphics.moveTo(this.playerStart.x, this.playerStart.y);
     graphics.lineTo(aimEndX, aimEndY);
     graphics.strokePath();
-
     graphics.fillStyle(0xfacc15, 0.9);
     graphics.fillTriangle(aimEndX, aimEndY, aimEndX + 10, aimEndY - 5, aimEndX + 10, aimEndY + 5);
 
-    graphics.lineStyle(5, this.phase === 'rebounded' ? 0xfacc15 : 0x38bdf8, this.phase === 'flying' || this.phase === 'rebounded' ? 1 : 0.42);
-    graphics.strokeRoundedRect(this.reboundFrameBounds.x, this.reboundFrameBounds.y, this.reboundFrameBounds.width, this.reboundFrameBounds.height, 10);
+    if (this.phase === 'cpu_thinking' || this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded') {
+      this.drawCpuIntent(graphics);
+    }
+
+    graphics.lineStyle(5, this.phase === 'player_rebounded' ? 0xfacc15 : 0x38bdf8, this.isPlayerShotMoving() ? 1 : 0.42);
+    graphics.strokeRoundedRect(this.playerFrameBounds.x, this.playerFrameBounds.y, this.playerFrameBounds.width, this.playerFrameBounds.height, 10);
+    graphics.lineStyle(5, this.phase === 'cpu_rebounded' ? 0x38bdf8 : 0xfacc15, this.isCpuShotMoving() ? 1 : 0.42);
+    graphics.strokeRoundedRect(this.cpuFrameBounds.x, this.cpuFrameBounds.y, this.cpuFrameBounds.width, this.cpuFrameBounds.height, 10);
 
     this.drawPowerMeter(graphics);
-    this.drawBallGraphic(graphics);
-
-    if (this.landingPreview) {
-      const markerColor = this.getLandingMarkerColor();
-      graphics.lineStyle(3, markerColor.stroke, this.phase === 'landed' ? 1 : 0.62);
-      graphics.fillStyle(markerColor.fill, this.phase === 'landed' ? 0.32 : 0.16);
-      graphics.fillCircle(this.landingPreview.x, this.landingPreview.y, 28);
-      graphics.strokeCircle(this.landingPreview.x, this.landingPreview.y, 28);
-      graphics.lineStyle(2, markerColor.crosshair, 0.9);
-      graphics.beginPath();
-      graphics.moveTo(this.landingPreview.x - 18, this.landingPreview.y);
-      graphics.lineTo(this.landingPreview.x + 18, this.landingPreview.y);
-      graphics.moveTo(this.landingPreview.x, this.landingPreview.y - 18);
-      graphics.lineTo(this.landingPreview.x, this.landingPreview.y + 18);
-      graphics.strokePath();
-    }
+    this.drawLandingMarker(graphics, this.playerShot, 'player');
+    this.drawLandingMarker(graphics, this.cpuShot, 'cpu');
+    this.drawShotGraphic(graphics, this.playerShot, 0xf97316, 0xffedd5);
+    this.drawShotGraphic(graphics, this.cpuShot, 0x38bdf8, 0xe0f2fe);
 
     this.phaseText.setText(
       [
-        `Phase: ${phaseLabel}`,
+        `Phase: ${phaseLabels[this.phase]}`,
+        `CPU difficulty: ${difficulty}`,
         this.scoringPreview.label,
-        `Player preview score: ${this.scoringPreview.playerPreviewScore}`,
-        `Landing: ${this.getLandingLabel()}`,
+        `Preview score: Player ${this.scoringPreview.playerPreviewScore} - ${this.scoringPreview.cpuPreviewScore} CPU`,
+        `Player landing: ${this.getLandingLabel(this.playerShot.result)}`,
+        `CPU landing: ${this.getLandingLabel(this.cpuShot.result)}`,
       ].join('\n'),
     );
     this.hintText.setText(this.getHintText());
     this.landingText
       .setText(this.getLandingPreviewText())
       .setColor(this.getLandingTextColor())
-      .setVisible(this.phase === 'rebounded' || this.phase === 'landed');
+      .setVisible(this.phase !== 'player_aiming' && this.phase !== 'player_charging' && this.phase !== 'player_flying');
   }
 
+  private drawCpuIntent(graphics: Phaser.GameObjects.Graphics): void {
+    const pulse = this.phase === 'cpu_thinking' ? 0.45 + Math.sin(this.time.now / 120) * 0.18 : 0.8;
 
-  private getLandingMarkerColor(): { fill: number; stroke: number; crosshair: number } {
-    if (this.phase !== 'landed') {
-      return { fill: 0xf97316, stroke: 0xfed7aa, crosshair: 0xffedd5 };
-    }
-
-    if (this.scoringPreview.result === 'valid') {
-      return { fill: 0x84cc16, stroke: 0xfacc15, crosshair: 0xecfccb };
-    }
-
-    if (this.scoringPreview.result === 'forbidden_zone') {
-      return { fill: 0xef4444, stroke: 0xfb923c, crosshair: 0xffedd5 };
-    }
-
-    return { fill: 0xdc2626, stroke: 0xfca5a5, crosshair: 0xfee2e2 };
+    graphics.lineStyle(4, 0x38bdf8, pulse);
+    graphics.beginPath();
+    graphics.moveTo(this.cpuStart.x, this.cpuStart.y);
+    graphics.lineTo(this.cpuTargetFrame.x - 24, this.cpuTargetFrame.y);
+    graphics.strokePath();
   }
 
-  private getLandingPreviewText(): string {
-    if (this.phase !== 'landed') {
-      return 'Landing preview';
+  private drawLandingMarker(graphics: Phaser.GameObjects.Graphics, shot: TchoukballShotState, side: TchoukballSide): void {
+    if (shot.landingX === null || shot.landingY === null) {
+      return;
     }
 
-    if (this.scoringPreview.result === 'valid') {
-      return `Valid landing preview\n${this.scoringPreview.label}`;
-    }
+    const markerColor = this.getLandingMarkerColor(shot.result, side);
+    const resolved = shot.result !== 'none';
 
-    if (this.scoringPreview.result === 'forbidden_zone') {
-      return `Forbidden zone preview\n${this.scoringPreview.label}`;
-    }
-
-    if (this.scoringPreview.result === 'out_of_bounds') {
-      return `Out of bounds preview\n${this.scoringPreview.label}`;
-    }
-
-    if (this.scoringPreview.result === 'missed_frame') {
-      return `Shot must hit the rebound frame first\n${this.scoringPreview.label}`;
-    }
-
-    return this.scoringPreview.label;
-  }
-
-  private getLandingTextColor(): string {
-    if (this.scoringPreview.result === 'valid') {
-      return '#bef264';
-    }
-
-    if (this.scoringPreview.result === 'missed_frame') {
-      return '#fecaca';
-    }
-
-    if (this.scoringPreview.result === 'forbidden_zone' || this.scoringPreview.result === 'out_of_bounds') {
-      return '#fdba74';
-    }
-
-    return '#fed7aa';
-  }
-
-  private getLandingLabel(): string {
-    if (this.scoringPreview.result === 'valid') {
-      return 'Valid';
-    }
-
-    if (this.scoringPreview.result === 'forbidden_zone') {
-      return 'Forbidden zone';
-    }
-
-    if (this.scoringPreview.result === 'out_of_bounds') {
-      return 'Out';
-    }
-
-    if (this.scoringPreview.result === 'missed_frame') {
-      return 'Missed frame';
-    }
-
-    return 'Pending';
+    graphics.lineStyle(3, markerColor.stroke, resolved ? 1 : 0.62);
+    graphics.fillStyle(markerColor.fill, resolved ? 0.32 : 0.16);
+    graphics.fillCircle(shot.landingX, shot.landingY, 28);
+    graphics.strokeCircle(shot.landingX, shot.landingY, 28);
+    graphics.lineStyle(2, markerColor.crosshair, 0.9);
+    graphics.beginPath();
+    graphics.moveTo(shot.landingX - 18, shot.landingY);
+    graphics.lineTo(shot.landingX + 18, shot.landingY);
+    graphics.moveTo(shot.landingX, shot.landingY - 18);
+    graphics.lineTo(shot.landingX, shot.landingY + 18);
+    graphics.strokePath();
   }
 
   private drawPowerMeter(graphics: Phaser.GameObjects.Graphics): void {
@@ -468,39 +604,153 @@ export class TchoukballScene extends Phaser.Scene {
 
     graphics.fillStyle(0x020617, 0.48);
     graphics.fillRoundedRect(meterX, meterY, meterWidth, meterHeight, 7);
-    graphics.fillStyle(this.phase === 'charging' ? 0xfacc15 : 0x38bdf8, 0.92);
+    graphics.fillStyle(this.phase === 'player_charging' ? 0xfacc15 : 0x38bdf8, 0.92);
     graphics.fillRoundedRect(meterX, meterY, meterWidth * this.charge, meterHeight, 7);
     graphics.lineStyle(2, 0xccfbf1, 0.72);
     graphics.strokeRoundedRect(meterX, meterY, meterWidth, meterHeight, 7);
   }
 
-  private drawBallGraphic(graphics: Phaser.GameObjects.Graphics): void {
+  private drawShotGraphic(graphics: Phaser.GameObjects.Graphics, shot: TchoukballShotState, fill: number, stroke: number): void {
     graphics.fillStyle(0x020617, 0.35);
-    graphics.fillCircle(this.ball.x + 3, this.ball.y + 4, BALL_RADIUS);
-    graphics.fillStyle(color(ZONE_COLORS.ball), 1);
-    graphics.fillCircle(this.ball.x, this.ball.y, BALL_RADIUS);
-    graphics.lineStyle(2, 0xffedd5, 1);
-    graphics.strokeCircle(this.ball.x, this.ball.y, BALL_RADIUS);
+    graphics.fillCircle(shot.x + 3, shot.y + 4, BALL_RADIUS);
+    graphics.fillStyle(fill, 1);
+    graphics.fillCircle(shot.x, shot.y, BALL_RADIUS);
+    graphics.lineStyle(2, stroke, 1);
+    graphics.strokeCircle(shot.x, shot.y, BALL_RADIUS);
+    graphics.fillStyle(0x07111f, 1);
+    graphics.fillCircle(shot.x, shot.y, 4);
+  }
+
+  private getLandingMarkerColor(result: TchoukballLandingResult, side: TchoukballSide): { fill: number; stroke: number; crosshair: number } {
+    if (result === 'none') {
+      return side === 'player'
+        ? { fill: 0xf97316, stroke: 0xfed7aa, crosshair: 0xffedd5 }
+        : { fill: 0x38bdf8, stroke: 0xbae6fd, crosshair: 0xe0f2fe };
+    }
+
+    if (result === 'valid') {
+      return { fill: 0x84cc16, stroke: side === 'player' ? 0xfacc15 : 0x38bdf8, crosshair: 0xecfccb };
+    }
+
+    if (result === 'forbidden_zone') {
+      return { fill: 0xef4444, stroke: 0xfb923c, crosshair: 0xffedd5 };
+    }
+
+    return { fill: 0xdc2626, stroke: 0xfca5a5, crosshair: 0xfee2e2 };
+  }
+
+  private getLandingPreviewText(): string {
+    if (this.phase === 'player_rebounded') {
+      return 'Player landing preview';
+    }
+
+    if (this.phase === 'player_landed') {
+      return `Player ${this.getLandingLabel(this.playerShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+    }
+
+    if (this.phase === 'cpu_thinking') {
+      return 'CPU thinking — automatic reply incoming';
+    }
+
+    if (this.phase === 'cpu_rebounded') {
+      return 'CPU landing preview';
+    }
+
+    if (this.phase === 'cpu_landed') {
+      return `CPU ${this.getLandingLabel(this.cpuShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+    }
+
+    if (this.phase === 'preview_result') {
+      return this.scoringPreview.label;
+    }
+
+    return this.scoringPreview.label;
+  }
+
+  private getLandingTextColor(): string {
+    const activeResult = this.phase === 'cpu_landed' || this.phase === 'preview_result' ? this.cpuShot.result : this.playerShot.result;
+
+    if (activeResult === 'valid') {
+      return '#bef264';
+    }
+
+    if (activeResult === 'missed_frame') {
+      return '#fecaca';
+    }
+
+    if (activeResult === 'forbidden_zone' || activeResult === 'out_of_bounds') {
+      return '#fdba74';
+    }
+
+    return '#fed7aa';
+  }
+
+  private getLandingLabel(result: TchoukballLandingResult): string {
+    if (result === 'valid') {
+      return 'Valid';
+    }
+
+    if (result === 'forbidden_zone') {
+      return 'Forbidden zone';
+    }
+
+    if (result === 'out_of_bounds') {
+      return 'Out';
+    }
+
+    if (result === 'missed_frame') {
+      return 'Missed frame';
+    }
+
+    return 'Pending';
   }
 
   private getHintText(): string {
-    if (this.phase === 'charging') {
+    if (this.phase === 'player_charging') {
       return 'Charging power — release Space / Enter / Primary to throw';
     }
 
-    if (this.phase === 'flying') {
-      return 'Flying toward the rebound frame';
+    if (this.phase === 'player_flying') {
+      return 'Player shot flying toward the rebound frame';
     }
 
-    if (this.phase === 'rebounded') {
-      return 'Rebounded — previewing the landing zone';
+    if (this.phase === 'player_rebounded') {
+      return 'Player rebound — previewing the landing zone';
     }
 
-    if (this.phase === 'landed') {
-      return 'Preview result only. Press Primary to retry; no full scoring system yet.';
+    if (this.phase === 'player_landed' || this.phase === 'cpu_thinking') {
+      return 'Player preview locked. CPU will take one automatic rebound shot.';
+    }
+
+    if (this.phase === 'cpu_flying') {
+      return 'CPU shot is flying toward the opposite rebound frame';
+    }
+
+    if (this.phase === 'cpu_rebounded') {
+      return 'CPU rebound — previewing its landing zone';
+    }
+
+    if (this.phase === 'cpu_landed') {
+      return 'CPU preview locked. Building preview score comparison.';
+    }
+
+    if (this.phase === 'preview_result') {
+      return 'Preview result only. Press Primary or Retry to reset; no full match system yet.';
     }
 
     return 'Aim with A / D or ← / →. Hold Space / Enter / Primary to charge.';
+  }
+
+  private isPlayerActive(): boolean {
+    return this.phase === 'player_aiming' || this.phase === 'player_charging' || this.phase === 'player_flying' || this.phase === 'player_rebounded';
+  }
+
+  private isPlayerShotMoving(): boolean {
+    return this.phase === 'player_flying' || this.phase === 'player_rebounded';
+  }
+
+  private isCpuShotMoving(): boolean {
+    return this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded';
   }
 
   private drawForbiddenZone(graphics: Phaser.GameObjects.Graphics, x: number, y: number, side: 'left' | 'right'): void {
@@ -556,7 +806,7 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private drawLabels(courtX: number, courtY: number, centerX: number, centerY: number): void {
-    this.add.text(centerX, 24, 'Tchoukball foundation preview', {
+    this.add.text(centerX, 24, 'Tchoukball VS CPU foundation preview', {
       align: 'center',
       color: '#f8fafc',
       fontFamily: 'Inter, sans-serif',
@@ -564,7 +814,7 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, 52, 'Aim, charge, throw, rebound, and simplified scoring preview — no full rules yet', {
+    this.add.text(centerX, 52, 'Player shot, CPU reply, landing classification, and preview comparison — no full rules yet', {
       align: 'center',
       color: '#bae6fd',
       fontFamily: 'Inter, sans-serif',
@@ -572,8 +822,8 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(courtX + 28, courtY + 12, 'Rebound frame', this.labelStyle()).setOrigin(0, 0);
-    this.add.text(courtX + COURT_WIDTH - 28, courtY + 12, 'Rebound frame', this.labelStyle()).setOrigin(1, 0);
+    this.add.text(courtX + 28, courtY + 12, 'Player target frame', this.labelStyle()).setOrigin(0, 0);
+    this.add.text(courtX + COURT_WIDTH - 28, courtY + 12, 'CPU target frame', this.labelStyle()).setOrigin(1, 0);
     this.add.text(courtX + 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
     this.add.text(courtX + COURT_WIDTH - 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
   }
