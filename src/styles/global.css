@@ -51,6 +51,8 @@ button:disabled {
 
 .site-header,
 .hero,
+.page-panel,
+.rules-page,
 .game-shell,
 .sports,
 .site-footer {
@@ -124,6 +126,8 @@ button:disabled {
 }
 
 .hero,
+.page-panel,
+.rules-page,
 .game-shell,
 .sports,
 .site-footer {
@@ -132,6 +136,27 @@ button:disabled {
 
 .hero {
   padding: clamp(32px, 6vw, 72px);
+}
+
+.page-panel,
+.rules-page {
+  margin-top: 24px;
+  padding: clamp(20px, 4vw, 32px);
+}
+
+.page-panel:first-child,
+.rules-page:first-child {
+  margin-top: 0;
+}
+
+.page-panel p:not(.eyebrow),
+.rules-page p:not(.eyebrow) {
+  max-width: 760px;
+  color: #cbd5e1;
+}
+
+.rules-page__grid {
+  margin-top: 24px;
 }
 
 .eyebrow {

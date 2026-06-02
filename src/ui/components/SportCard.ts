@@ -21,6 +21,14 @@ function formatDifficulty(difficulty: Sport['difficulty']): string {
   return difficulty[0].toUpperCase() + difficulty.slice(1);
 }
 
+function sportPath(sport: Sport): string {
+  return `/sports/${sport.id}/`;
+}
+
+function rulesPath(sport: Sport): string {
+  return `/sports/${sport.id}/rules/`;
+}
+
 export function SportCard(sport: Sport): string {
   const isActive = sport.status === 'active';
   const isFoundation = sport.status === 'foundation';
@@ -58,12 +66,8 @@ export function SportCard(sport: Sport): string {
       </div>
 
       <div class="sport-card__actions" aria-label="${sport.name} actions">
-        <button class="button button--primary" type="button" data-action="play" data-sport="${sport.id}" aria-label="${playLabel}" ${hasPreview ? '' : 'disabled'}>
-          ${isActive ? 'Play' : isFoundation ? 'Preview' : 'Soon'}
-        </button>
-        <button class="button button--secondary" type="button" data-action="rules" data-sport="${sport.id}" aria-label="${rulesLabel}" ${hasPreview ? '' : 'disabled'}>
-          Rules
-        </button>
+        ${hasPreview ? `<a class="button button--primary" href="${sportPath(sport)}" data-action="play-link" data-sport="${sport.id}" aria-label="${playLabel}">${isActive ? 'Play' : 'Preview'}</a>` : `<button class="button button--primary" type="button" aria-label="${playLabel}" disabled>Soon</button>`}
+        ${hasPreview ? `<a class="button button--secondary" href="${rulesPath(sport)}" data-action="rules-link" data-sport="${sport.id}" aria-label="${rulesLabel}">Rules</a>` : `<button class="button button--secondary" type="button" aria-label="${rulesLabel}" disabled>Rules</button>`}
         <button class="button button--icon sport-card__favorite ${favorite ? 'sport-card__favorite--active' : ''}" type="button" data-action="favorite" data-sport="${sport.id}" aria-label="${favoriteLabel}" aria-pressed="${favorite}">
           <span data-favorite-icon aria-hidden="true">${favorite ? '♥' : '♡'}</span>
           <span data-favorite-label>${favorite ? 'Favorited' : 'Favorite'}</span>

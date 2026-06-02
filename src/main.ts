@@ -9,6 +9,8 @@ if (!app) {
   throw new Error('App root element is missing.');
 }
 
-const gameRoot = renderApp(app, sports);
+const renderedApp = renderApp(app, sports);
 
-createGame(gameRoot);
+if (renderedApp.gameRoot && renderedApp.sport) {
+  createGame(renderedApp.gameRoot, renderedApp.sport);
+}

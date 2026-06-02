@@ -2,10 +2,20 @@ import type { Sport } from '../data/sports';
 import { completeMission, markSportPlayed, subscribe, toggleFavorite } from '../progress/progressManager';
 import type { ProgressState } from '../progress/types';
 import { Footer } from './components/Footer';
-import { GameShell, setupGameShell } from './components/GameShell';
+import type { GameShellSport } from './components/GameShell';
+import { setupGameShell } from './components/GameShell';
 import { Header } from './components/Header';
-import { Hero } from './components/Hero';
-import { SportsGrid } from './components/SportsGrid';
+import { BocciaPage } from './pages/BocciaPage';
+import { BocciaRulesPage } from './pages/BocciaRulesPage';
+import { HomePage } from './pages/HomePage';
+import { SportsPage } from './pages/SportsPage';
+import { TchoukballPage } from './pages/TchoukballPage';
+import { TchoukballRulesPage } from './pages/TchoukballRulesPage';
+
+export interface RenderedApp {
+  gameRoot: HTMLElement | null;
+  sport: GameShellSport | null;
+}
 
 function sportNameById(sports: Sport[], sportId: string | undefined): string {
   if (!sportId) {
@@ -13,6 +23,47 @@ function sportNameById(sports: Sport[], sportId: string | undefined): string {
   }
 
   return sports.find((sport) => sport.id === sportId)?.name ?? sportId;
+}
+
+function normalizePathname(pathname: string): string {
+  if (pathname !== '/' && pathname.endsWith('/')) {
+    return pathname;
+  }
+
+  if (pathname === '/') {
+    return '/';
+  }
+
+  return `${pathname}/`;
+}
+
+function routeContent(pathname: string, sports: Sport[]): { content: string; sport: GameShellSport | null } {
+  switch (normalizePathname(pathname)) {
+    case '/sports/':
+      return { content: SportsPage(sports), sport: null };
+    case '/sports/boccia/':
+      return { content: BocciaPage(), sport: 'boccia' };
+    case '/sports/tchoukball/':
+      return { content: TchoukballPage(), sport: 'tchoukball' };
+    case '/sports/boccia/rules/':
+      return { content: BocciaRulesPage(), sport: null };
+    case '/sports/tchoukball/rules/':
+      return { content: TchoukballRulesPage(), sport: null };
+    case '/':
+      return { content: HomePage(sports), sport: null };
+    default:
+      return {
+        content: `
+          <section class="page-panel" aria-labelledby="not-found-title">
+            <p class="eyebrow">Route not found</p>
+            <h1 id="not-found-title">This page is not in the arcade yet.</h1>
+            <p>Use the sports list to open a supported dedicated page.</p>
+            <a class="button button--primary" href="/sports/">Back to sports</a>
+          </section>
+        `,
+        sport: null,
+      };
+  }
 }
 
 function updateFavoriteButton(button: HTMLButtonElement, sports: Sport[], progress: ProgressState): void {
@@ -42,8 +93,7 @@ function updateFavoriteButton(button: HTMLButtonElement, sports: Sport[], progre
 
 function setupProgressControls(root: HTMLElement, sports: Sport[]): void {
   const favoriteButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-action="favorite"]'));
-  const playButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-action="play"]'));
-  const rulesButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-action="rules"]'));
+  const playLinks = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-action="play-link"]'));
   const favoriteCount = root.querySelector<HTMLElement>('[data-progress-favorite-count]');
   const homeRecent = root.querySelector<HTMLElement>('[data-progress-recent-home]');
 
@@ -69,9 +119,9 @@ function setupProgressControls(root: HTMLElement, sports: Sport[]): void {
     });
   });
 
-  playButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const sportId = button.dataset.sport;
+  playLinks.forEach((link) => {
+    link.addEventListener('click', () => {
+      const sportId = link.dataset.sport;
 
       if (!sportId) {
         return;
@@ -79,50 +129,31 @@ function setupProgressControls(root: HTMLElement, sports: Sport[]): void {
 
       markSportPlayed(sportId);
       completeMission('first_play');
-      document.querySelector('#play')?.scrollIntoView({ behavior: 'smooth' });
-
-      if (sportId === 'tchoukball') {
-        window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'tchoukball' } }));
-      } else if (sportId === 'boccia') {
-        window.dispatchEvent(new CustomEvent('sport-preview:show', { detail: { sportId: 'boccia' } }));
-      }
-    });
-  });
-
-  rulesButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const sportId = button.dataset.sport;
-
-      if (!sportId) {
-        return;
-      }
-
-      document.querySelector(`#${sportId}-rules`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
 
-export function renderApp(root: HTMLElement, sports: Sport[]): HTMLElement {
+export function renderApp(root: HTMLElement, sports: Sport[]): RenderedApp {
+  const route = routeContent(window.location.pathname, sports);
+
   root.innerHTML = `
     <div class="app-shell">
       ${Header()}
       <main>
-        ${Hero()}
-        ${GameShell()}
-        ${SportsGrid(sports)}
+        ${route.content}
       </main>
       ${Footer()}
     </div>
   `;
 
-  setupGameShell(root);
   setupProgressControls(root, sports);
 
-  const gameRoot = root.querySelector<HTMLElement>('#game-root');
-
-  if (!gameRoot) {
-    throw new Error('Game root element was not rendered.');
+  if (route.sport) {
+    setupGameShell(root, route.sport);
   }
 
-  return gameRoot;
+  return {
+    gameRoot: root.querySelector<HTMLElement>('#game-root'),
+    sport: route.sport,
+  };
 }
