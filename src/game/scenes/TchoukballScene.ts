@@ -3,7 +3,7 @@ import { audioManager } from '../../audio/audioManager';
 import { inputManager } from '../../input/inputManager';
 import type { InputState } from '../../input/types';
 import { matchManager } from '../match/matchManager';
-import type { Difficulty } from '../types';
+import type { Difficulty, MatchMode } from '../types';
 import {
   BALL_RADIUS,
   COURT_HEIGHT,
@@ -19,6 +19,11 @@ type TchoukballPhase =
   | 'player_flying'
   | 'player_rebounded'
   | 'player_landed'
+  | 'p2_aiming'
+  | 'p2_charging'
+  | 'p2_flying'
+  | 'p2_rebounded'
+  | 'p2_landed'
   | 'cpu_thinking'
   | 'cpu_flying'
   | 'cpu_rebounded'
@@ -26,7 +31,7 @@ type TchoukballPhase =
   | 'preview_result';
 
 type TchoukballLandingResult = 'valid' | 'forbidden_zone' | 'out_of_bounds' | 'missed_frame' | 'none';
-type TchoukballSide = 'player' | 'cpu';
+type TchoukballSide = 'player' | 'cpu' | 'p2';
 
 interface TchoukballShotState {
   x: number;
@@ -64,7 +69,7 @@ const PLAYER_LANDING_HOLD_MS = 650;
 const CPU_LANDING_HOLD_MS = 650;
 
 const DEFAULT_SCORING_PREVIEW: TchoukballScoringPreview = {
-  label: 'Preview result: waiting for player shot',
+  label: 'Preview result: waiting for P1 shot',
   playerPreviewScore: 0,
   cpuPreviewScore: 0,
 };
@@ -82,11 +87,16 @@ const cpuErrorByDifficulty: Record<Difficulty, { aim: number; power: number }> =
 };
 
 const phaseLabels: Record<TchoukballPhase, string> = {
-  player_aiming: 'Player aiming',
-  player_charging: 'Player charging',
-  player_flying: 'Player flying',
-  player_rebounded: 'Player rebounded',
-  player_landed: 'Player landed',
+  player_aiming: 'P1 aiming',
+  player_charging: 'P1 charging',
+  player_flying: 'P1 flying',
+  player_rebounded: 'P1 rebounded',
+  player_landed: 'P1 landed',
+  p2_aiming: 'P2 aiming',
+  p2_charging: 'P2 charging',
+  p2_flying: 'P2 flying',
+  p2_rebounded: 'P2 rebounded',
+  p2_landed: 'P2 landed',
   cpu_thinking: 'CPU thinking',
   cpu_flying: 'CPU flying',
   cpu_rebounded: 'CPU rebounded',
@@ -141,6 +151,12 @@ export class TchoukballScene extends Phaser.Scene {
   private cpuCharge = 0.58;
 
   private cpuAimDegrees = 0;
+
+  private p2AimOffsetDegrees = 0;
+
+  private p2Charge = 0;
+
+  private activeMode: MatchMode = matchManager.getMatchState().mode;
 
   private reboundElapsedMs = 0;
 
@@ -230,14 +246,29 @@ export class TchoukballScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const deltaSeconds = delta / 1000;
     const primaryDown = this.latestInput.primary;
+    const currentMode = matchManager.getMatchState().mode;
+
+    if (currentMode !== this.activeMode) {
+      this.activeMode = currentMode;
+      this.resetInteraction();
+    }
 
     if (this.phase === 'player_aiming' || this.phase === 'player_charging') {
       this.updateAim(deltaSeconds);
     }
 
+    if (this.phase === 'p2_aiming' || this.phase === 'p2_charging') {
+      this.updateP2Aim(deltaSeconds);
+    }
+
     if (this.phase === 'player_aiming' && primaryDown && !this.wasPrimaryDown) {
       this.phase = 'player_charging';
       this.charge = 0;
+    }
+
+    if (this.phase === 'p2_aiming' && primaryDown && !this.wasPrimaryDown) {
+      this.phase = 'p2_charging';
+      this.p2Charge = 0;
     }
 
     if (this.phase === 'player_charging') {
@@ -248,12 +279,24 @@ export class TchoukballScene extends Phaser.Scene {
       }
     }
 
+    if (this.phase === 'p2_charging') {
+      this.p2Charge = Math.min(1, this.p2Charge + deltaSeconds * CHARGE_PER_SECOND);
+
+      if (!primaryDown && this.wasPrimaryDown) {
+        this.throwP2Ball();
+      }
+    }
+
     if (this.phase === 'player_flying' || this.phase === 'player_rebounded') {
       this.updateShot(delta, deltaSeconds, 'player');
     }
 
     if (this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded') {
       this.updateShot(delta, deltaSeconds, 'cpu');
+    }
+
+    if (this.phase === 'p2_flying' || this.phase === 'p2_rebounded') {
+      this.updateShot(delta, deltaSeconds, 'p2');
     }
 
     if (this.phase === 'preview_result' && primaryDown && !this.wasPrimaryDown) {
@@ -290,6 +333,20 @@ export class TchoukballScene extends Phaser.Scene {
     );
   }
 
+  private updateP2Aim(deltaSeconds: number): void {
+    const direction = Number(this.latestInput.aimRight) - Number(this.latestInput.aimLeft);
+
+    if (direction === 0) {
+      return;
+    }
+
+    this.p2AimOffsetDegrees = Phaser.Math.Clamp(
+      this.p2AimOffsetDegrees + direction * AIM_TURN_DEGREES_PER_SECOND * deltaSeconds,
+      -26,
+      26,
+    );
+  }
+
   private throwPlayerBall(): void {
     const aimRadians = Phaser.Math.DegToRad(this.aimDegrees);
     const speed = Phaser.Math.Linear(MIN_THROW_SPEED, MAX_THROW_SPEED, this.charge);
@@ -313,6 +370,18 @@ export class TchoukballScene extends Phaser.Scene {
     this.cpuAimDegrees = Phaser.Math.RadToDeg(aimRadians);
     this.cpuShot = createEmptyShotState(this.cpuStart);
     this.phase = 'cpu_flying';
+    this.cpuShot.vx = Math.cos(aimRadians) * speed;
+    this.cpuShot.vy = Math.sin(aimRadians) * speed;
+    audioManager.playSe('throw');
+  }
+
+  private throwP2Ball(): void {
+    const baseAimRadians = Phaser.Math.Angle.Between(this.cpuStart.x, this.cpuStart.y, this.cpuTargetFrame.x, this.cpuTargetFrame.y);
+    const aimRadians = baseAimRadians + Phaser.Math.DegToRad(this.p2AimOffsetDegrees);
+    const speed = Phaser.Math.Linear(MIN_THROW_SPEED, MAX_THROW_SPEED, this.p2Charge);
+
+    this.phase = 'p2_flying';
+    this.cpuShot = createEmptyShotState(this.cpuStart);
     this.cpuShot.vx = Math.cos(aimRadians) * speed;
     this.cpuShot.vy = Math.sin(aimRadians) * speed;
     audioManager.playSe('throw');
@@ -359,7 +428,7 @@ export class TchoukballScene extends Phaser.Scene {
   private reboundShot(side: TchoukballSide): void {
     const shot = this.getShot(side);
     const incomingSpeed = Math.max(MIN_THROW_SPEED, Math.hypot(shot.vx, shot.vy));
-    const landingPoint = side === 'player' ? this.getPlayerLandingPreview() : this.getCpuLandingPreview();
+    const landingPoint = side === 'player' ? this.getPlayerLandingPreview() : this.getOpponentLandingPreview(side);
     const angle = Phaser.Math.Angle.Between(shot.x, shot.y, landingPoint.x, landingPoint.y);
     const reboundSpeed = incomingSpeed * REBOUND_SPEED_MULTIPLIER;
 
@@ -367,7 +436,7 @@ export class TchoukballScene extends Phaser.Scene {
     shot.landingX = landingPoint.x;
     shot.landingY = landingPoint.y;
     shot.result = 'none';
-    this.phase = side === 'player' ? 'player_rebounded' : 'cpu_rebounded';
+    this.phase = side === 'player' ? 'player_rebounded' : side === 'p2' ? 'p2_rebounded' : 'cpu_rebounded';
     this.reboundElapsedMs = 0;
     shot.x = side === 'player' ? Math.max(shot.x, this.playerTargetFrame.x + FRAME_SIZE / 2) : Math.min(shot.x, this.cpuTargetFrame.x - FRAME_SIZE / 2);
     shot.vx = Math.cos(angle) * reboundSpeed;
@@ -382,7 +451,14 @@ export class TchoukballScene extends Phaser.Scene {
     };
   }
 
-  private getCpuLandingPreview(): Point {
+  private getOpponentLandingPreview(side: TchoukballSide): Point {
+    if (side === 'p2') {
+      return {
+        x: this.court.right - 70 - this.p2Charge * 360,
+        y: this.court.centerY + this.p2AimOffsetDegrees * 6.6,
+      };
+    }
+
     return {
       x: this.court.right - 70 - this.cpuCharge * 360,
       y: this.court.centerY + this.cpuAimDegrees * 6.6,
@@ -401,11 +477,11 @@ export class TchoukballScene extends Phaser.Scene {
     shot.vx = 0;
     shot.vy = 0;
     this.updateScoringPreview();
-    this.phase = side === 'player' ? 'player_landed' : 'cpu_landed';
+    this.phase = side === 'player' ? 'player_landed' : side === 'p2' ? 'p2_landed' : 'cpu_landed';
     audioManager.playSe(shot.result === 'valid' ? 'score' : 'fail');
 
     if (side === 'player') {
-      this.queueCpuThinking();
+      this.queueOpponentTurn();
     } else {
       this.cpuTimer = this.time.delayedCall(CPU_LANDING_HOLD_MS, () => this.showPreviewResult());
     }
@@ -421,14 +497,29 @@ export class TchoukballScene extends Phaser.Scene {
     shot.landingY = null;
     shot.result = 'missed_frame';
     this.updateScoringPreview();
-    this.phase = side === 'player' ? 'player_landed' : 'cpu_landed';
+    this.phase = side === 'player' ? 'player_landed' : side === 'p2' ? 'p2_landed' : 'cpu_landed';
     audioManager.playSe('fail');
 
     if (side === 'player') {
-      this.queueCpuThinking();
+      this.queueOpponentTurn();
     } else {
       this.cpuTimer = this.time.delayedCall(CPU_LANDING_HOLD_MS, () => this.showPreviewResult());
     }
+  }
+
+  private queueOpponentTurn(): void {
+    if (this.isLocal2P()) {
+      this.cpuTimer?.remove(false);
+      this.cpuTimer = this.time.delayedCall(PLAYER_LANDING_HOLD_MS, () => {
+        this.phase = 'p2_aiming';
+        this.p2Charge = 0;
+        this.p2AimOffsetDegrees = 0;
+        this.cpuShot = createEmptyShotState(this.cpuStart);
+      });
+      return;
+    }
+
+    this.queueCpuThinking();
   }
 
   private queueCpuThinking(): void {
@@ -456,20 +547,65 @@ export class TchoukballScene extends Phaser.Scene {
     };
   }
 
-  private buildPreviewLabel(playerScore: number, cpuScore: number): string {
+  private buildPreviewLabel(playerScore: number, opponentScore: number): string {
+    const opponentLabel = this.getOpponentLabel();
+    const p1Label = this.isLocal2P() ? 'P1' : 'Player';
+
     if (this.phase === 'preview_result' || this.cpuShot.result !== 'none') {
-      return `Preview result: Player ${playerScore} - ${cpuScore} CPU`;
+      return `Preview result: ${p1Label} ${playerScore} - ${opponentScore} ${opponentLabel}`;
     }
 
     if (this.playerShot.result === 'valid') {
-      return 'Preview result: Player +1; CPU reply pending';
+      return `Preview result: ${p1Label} +1; ${opponentLabel} reply pending`;
     }
 
     if (this.playerShot.result !== 'none') {
-      return 'Preview result: Player no point; CPU reply pending';
+      return `Preview result: ${p1Label} no point; ${opponentLabel} reply pending`;
     }
 
     return DEFAULT_SCORING_PREVIEW.label;
+  }
+
+  private isLocal2P(): boolean {
+    return this.activeMode === 'local_2p';
+  }
+
+  private getModeLabel(): string {
+    return this.isLocal2P() ? 'Local 2P' : 'VS CPU';
+  }
+
+  private getOpponentLabel(): string {
+    return this.isLocal2P() ? 'P2' : 'CPU';
+  }
+
+  private getPhaseLabel(): string {
+    if (!this.isLocal2P() && this.phase.startsWith('player')) {
+      return phaseLabels[this.phase].replace('P1', 'Player');
+    }
+
+    return phaseLabels[this.phase];
+  }
+
+  private getScoreLine(): string {
+    const p1Label = this.isLocal2P() ? 'P1' : 'Player';
+
+    return `${p1Label} ${this.scoringPreview.playerPreviewScore} - ${this.scoringPreview.cpuPreviewScore} ${this.getOpponentLabel()}`;
+  }
+
+  private getTurnLabel(): string {
+    if (this.phase.startsWith('cpu')) {
+      return 'CPU';
+    }
+
+    if (this.phase.startsWith('p2')) {
+      return 'P2';
+    }
+
+    if (this.phase === 'preview_result') {
+      return 'Preview result';
+    }
+
+    return this.isLocal2P() ? 'P1' : 'Player';
   }
 
   private getShot(side: TchoukballSide): TchoukballShotState {
@@ -501,9 +637,12 @@ export class TchoukballScene extends Phaser.Scene {
   private resetInteraction(): void {
     this.cpuTimer?.remove(false);
     this.cpuTimer = null;
+    this.activeMode = matchManager.getMatchState().mode;
     this.phase = 'player_aiming';
     this.charge = 0;
     this.cpuCharge = 0.58;
+    this.p2Charge = 0;
+    this.p2AimOffsetDegrees = 0;
     this.reboundElapsedMs = 0;
     this.aimDegrees = this.clampedPlayerFrameAim();
     this.playerShot = createEmptyShotState(this.playerStart);
@@ -521,6 +660,10 @@ export class TchoukballScene extends Phaser.Scene {
     const aimLength = 136 + this.charge * 52;
     const aimEndX = this.playerStart.x + Math.cos(aimRadians) * aimLength;
     const aimEndY = this.playerStart.y + Math.sin(aimRadians) * aimLength;
+    const p2AimRadians = Phaser.Math.Angle.Between(this.cpuStart.x, this.cpuStart.y, this.cpuTargetFrame.x, this.cpuTargetFrame.y) + Phaser.Math.DegToRad(this.p2AimOffsetDegrees);
+    const p2AimLength = 136 + this.p2Charge * 52;
+    const p2AimEndX = this.cpuStart.x + Math.cos(p2AimRadians) * p2AimLength;
+    const p2AimEndY = this.cpuStart.y + Math.sin(p2AimRadians) * p2AimLength;
     const difficulty = difficultyLabels[matchManager.getMatchState().difficulty];
 
     graphics.clear();
@@ -533,13 +676,21 @@ export class TchoukballScene extends Phaser.Scene {
     graphics.fillStyle(0xfacc15, 0.9);
     graphics.fillTriangle(aimEndX, aimEndY, aimEndX + 10, aimEndY - 5, aimEndX + 10, aimEndY + 5);
 
+    graphics.lineStyle(4, 0x38bdf8, this.isP2Active() ? 0.95 : this.isLocal2P() ? 0.24 : 0);
+    graphics.beginPath();
+    graphics.moveTo(this.cpuStart.x, this.cpuStart.y);
+    graphics.lineTo(p2AimEndX, p2AimEndY);
+    graphics.strokePath();
+    graphics.fillStyle(0x38bdf8, 0.9);
+    graphics.fillTriangle(p2AimEndX, p2AimEndY, p2AimEndX - 10, p2AimEndY - 5, p2AimEndX - 10, p2AimEndY + 5);
+
     if (this.phase === 'cpu_thinking' || this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded') {
       this.drawCpuIntent(graphics);
     }
 
     graphics.lineStyle(5, this.phase === 'player_rebounded' ? 0xfacc15 : 0x38bdf8, this.isPlayerShotMoving() ? 1 : 0.42);
     graphics.strokeRoundedRect(this.playerFrameBounds.x, this.playerFrameBounds.y, this.playerFrameBounds.width, this.playerFrameBounds.height, 10);
-    graphics.lineStyle(5, this.phase === 'cpu_rebounded' ? 0x38bdf8 : 0xfacc15, this.isCpuShotMoving() ? 1 : 0.42);
+    graphics.lineStyle(5, this.phase === 'cpu_rebounded' || this.phase === 'p2_rebounded' ? 0x38bdf8 : 0xfacc15, this.isOpponentShotMoving() ? 1 : 0.42);
     graphics.strokeRoundedRect(this.cpuFrameBounds.x, this.cpuFrameBounds.y, this.cpuFrameBounds.width, this.cpuFrameBounds.height, 10);
 
     this.drawPowerMeter(graphics);
@@ -550,19 +701,27 @@ export class TchoukballScene extends Phaser.Scene {
 
     this.phaseText.setText(
       [
-        `Phase: ${phaseLabels[this.phase]}`,
-        `CPU difficulty: ${difficulty}`,
-        this.scoringPreview.label,
-        `Preview score: Player ${this.scoringPreview.playerPreviewScore} - ${this.scoringPreview.cpuPreviewScore} CPU`,
-        `Player landing: ${this.getLandingLabel(this.playerShot.result)}`,
-        `CPU landing: ${this.getLandingLabel(this.cpuShot.result)}`,
-      ].join('\n'),
+        `Mode: ${this.getModeLabel()}`,
+        `Turn: ${this.getTurnLabel()}`,
+        `Phase: ${this.getPhaseLabel()}`,
+        this.isLocal2P() ? null : `CPU difficulty: ${difficulty}`,
+        `Preview score: ${this.getScoreLine()}`,
+        `${this.isLocal2P() ? 'P1' : 'Player'} landing: ${this.getLandingLabel(this.playerShot.result)}`,
+        `${this.getOpponentLabel()} landing: ${this.getLandingLabel(this.cpuShot.result)}`,
+      ].filter((line): line is string => line !== null).join('\n'),
     );
     this.hintText.setText(this.getHintText());
     this.landingText
       .setText(this.getLandingPreviewText())
       .setColor(this.getLandingTextColor())
-      .setVisible(this.phase !== 'player_aiming' && this.phase !== 'player_charging' && this.phase !== 'player_flying');
+      .setVisible(
+        this.phase !== 'player_aiming' &&
+          this.phase !== 'player_charging' &&
+          this.phase !== 'player_flying' &&
+          this.phase !== 'p2_aiming' &&
+          this.phase !== 'p2_charging' &&
+          this.phase !== 'p2_flying',
+      );
   }
 
   private drawCpuIntent(graphics: Phaser.GameObjects.Graphics): void {
@@ -601,11 +760,13 @@ export class TchoukballScene extends Phaser.Scene {
     const meterY = this.court.top + 24;
     const meterWidth = 156;
     const meterHeight = 14;
+    const activeCharge = this.phase === 'p2_charging' ? this.p2Charge : this.charge;
+    const activeFill = this.phase === 'p2_charging' ? 0x38bdf8 : 0xfacc15;
 
     graphics.fillStyle(0x020617, 0.48);
     graphics.fillRoundedRect(meterX, meterY, meterWidth, meterHeight, 7);
-    graphics.fillStyle(this.phase === 'player_charging' ? 0xfacc15 : 0x38bdf8, 0.92);
-    graphics.fillRoundedRect(meterX, meterY, meterWidth * this.charge, meterHeight, 7);
+    graphics.fillStyle(activeFill, 0.92);
+    graphics.fillRoundedRect(meterX, meterY, meterWidth * activeCharge, meterHeight, 7);
     graphics.lineStyle(2, 0xccfbf1, 0.72);
     graphics.strokeRoundedRect(meterX, meterY, meterWidth, meterHeight, 7);
   }
@@ -641,23 +802,23 @@ export class TchoukballScene extends Phaser.Scene {
 
   private getLandingPreviewText(): string {
     if (this.phase === 'player_rebounded') {
-      return 'Player landing preview';
+      return `${this.isLocal2P() ? 'P1' : 'Player'} landing preview`;
     }
 
     if (this.phase === 'player_landed') {
-      return `Player ${this.getLandingLabel(this.playerShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+      return `${this.isLocal2P() ? 'P1' : 'Player'} ${this.getLandingLabel(this.playerShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
     }
 
     if (this.phase === 'cpu_thinking') {
       return 'CPU thinking — automatic reply incoming';
     }
 
-    if (this.phase === 'cpu_rebounded') {
-      return 'CPU landing preview';
+    if (this.phase === 'cpu_rebounded' || this.phase === 'p2_rebounded') {
+      return `${this.getOpponentLabel()} landing preview`;
     }
 
-    if (this.phase === 'cpu_landed') {
-      return `CPU ${this.getLandingLabel(this.cpuShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
+    if (this.phase === 'cpu_landed' || this.phase === 'p2_landed') {
+      return `${this.getOpponentLabel()} ${this.getLandingLabel(this.cpuShot.result).toLowerCase()} preview\n${this.scoringPreview.label}`;
     }
 
     if (this.phase === 'preview_result') {
@@ -668,7 +829,7 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private getLandingTextColor(): string {
-    const activeResult = this.phase === 'cpu_landed' || this.phase === 'preview_result' ? this.cpuShot.result : this.playerShot.result;
+    const activeResult = this.phase === 'cpu_landed' || this.phase === 'p2_landed' || this.phase === 'preview_result' ? this.cpuShot.result : this.playerShot.result;
 
     if (activeResult === 'valid') {
       return '#bef264';
@@ -706,19 +867,31 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private getHintText(): string {
-    if (this.phase === 'player_charging') {
+    if (this.phase === 'player_charging' || this.phase === 'p2_charging') {
       return 'Charging power — release Space / Enter / Primary to throw';
     }
 
     if (this.phase === 'player_flying') {
-      return 'Player shot flying toward the rebound frame';
+      return `${this.isLocal2P() ? 'P1' : 'Player'} shot flying toward the rebound frame`;
+    }
+
+    if (this.phase === 'p2_flying') {
+      return 'P2 shot flying toward the opposite rebound frame';
     }
 
     if (this.phase === 'player_rebounded') {
-      return 'Player rebound — previewing the landing zone';
+      return `${this.isLocal2P() ? 'P1' : 'Player'} rebound — previewing the landing zone`;
     }
 
-    if (this.phase === 'player_landed' || this.phase === 'cpu_thinking') {
+    if (this.phase === 'p2_rebounded') {
+      return 'P2 rebound — previewing the landing zone';
+    }
+
+    if (this.phase === 'player_landed') {
+      return this.isLocal2P() ? 'P1 preview locked. P2 can take one local rebound shot.' : 'Player preview locked. CPU will take one automatic rebound shot.';
+    }
+
+    if (this.phase === 'cpu_thinking') {
       return 'Player preview locked. CPU will take one automatic rebound shot.';
     }
 
@@ -730,8 +903,8 @@ export class TchoukballScene extends Phaser.Scene {
       return 'CPU rebound — previewing its landing zone';
     }
 
-    if (this.phase === 'cpu_landed') {
-      return 'CPU preview locked. Building preview score comparison.';
+    if (this.phase === 'cpu_landed' || this.phase === 'p2_landed') {
+      return `${this.getOpponentLabel()} preview locked. Building preview score comparison.`;
     }
 
     if (this.phase === 'preview_result') {
@@ -749,8 +922,12 @@ export class TchoukballScene extends Phaser.Scene {
     return this.phase === 'player_flying' || this.phase === 'player_rebounded';
   }
 
-  private isCpuShotMoving(): boolean {
-    return this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded';
+  private isP2Active(): boolean {
+    return this.phase === 'p2_aiming' || this.phase === 'p2_charging' || this.phase === 'p2_flying' || this.phase === 'p2_rebounded';
+  }
+
+  private isOpponentShotMoving(): boolean {
+    return this.phase === 'cpu_flying' || this.phase === 'cpu_rebounded' || this.phase === 'p2_flying' || this.phase === 'p2_rebounded';
   }
 
   private drawForbiddenZone(graphics: Phaser.GameObjects.Graphics, x: number, y: number, side: 'left' | 'right'): void {
@@ -806,7 +983,7 @@ export class TchoukballScene extends Phaser.Scene {
   }
 
   private drawLabels(courtX: number, courtY: number, centerX: number, centerY: number): void {
-    this.add.text(centerX, 24, 'Tchoukball VS CPU foundation preview', {
+    this.add.text(centerX, 24, 'Tchoukball foundation preview', {
       align: 'center',
       color: '#f8fafc',
       fontFamily: 'Inter, sans-serif',
@@ -814,7 +991,7 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, 52, 'Player shot, CPU reply, landing classification, and preview comparison — no full rules yet', {
+    this.add.text(centerX, 52, 'VS CPU or Local 2P rebound shots, landing classification, and preview comparison — no full rules yet', {
       align: 'center',
       color: '#bae6fd',
       fontFamily: 'Inter, sans-serif',
@@ -822,8 +999,8 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(courtX + 28, courtY + 12, 'Player target frame', this.labelStyle()).setOrigin(0, 0);
-    this.add.text(courtX + COURT_WIDTH - 28, courtY + 12, 'CPU target frame', this.labelStyle()).setOrigin(1, 0);
+    this.add.text(courtX + 28, courtY + 12, 'P1 target frame', this.labelStyle()).setOrigin(0, 0);
+    this.add.text(courtX + COURT_WIDTH - 28, courtY + 12, 'P2 / CPU target frame', this.labelStyle()).setOrigin(1, 0);
     this.add.text(courtX + 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
     this.add.text(courtX + COURT_WIDTH - 92, centerY + 86, 'Forbidden zone', this.zoneLabelStyle()).setOrigin(0.5);
   }
