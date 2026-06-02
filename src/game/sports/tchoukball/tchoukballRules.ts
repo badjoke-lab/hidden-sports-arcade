@@ -28,16 +28,16 @@ export const tchoukballRuleSections: TchoukballRuleSection[] = [
     id: 'simplified-arcade-version',
     title: 'Simplified arcade version',
     body: [
-      'The foundation preview shows the court, frames, forbidden zones, player markers, and ball marker only.',
-      'Future arcade controls will focus on aiming at the frame, choosing power, and learning how rebounds create space.',
+      'The foundation preview shows the court, frames, forbidden zones, player markers, aim/throw flow, and a simplified landing result.',
+      'Current arcade controls focus on aiming at the frame, choosing power, and learning how rebounds create space.',
     ],
   },
   {
     id: 'playable-later',
     title: 'What will be playable later',
     body: [
-      'Later versions can add throwing, catching, rebound prediction, scoring feedback, tutorials, and CPU or local multiplayer shells.',
-      'For this foundation, there is no scoring, CPU behavior, Local 2P Tchoukball mode, or real catch/throw gameplay yet.',
+      'Later versions can add catching, rebound prediction, tutorials, and CPU or local multiplayer shells.',
+      'For this foundation, there is only a non-final Player +1 preview for valid landings; there is no CPU behavior, Local 2P Tchoukball mode, full match flow, or real catch gameplay yet.',
     ],
   },
 ];
