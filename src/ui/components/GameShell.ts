@@ -79,10 +79,10 @@ function resultTextForSport(sport: GameShellSport, state: MatchState): string {
     }
 
     if (state.status === 'finished') {
-      return 'Tchoukball preview complete. Retry to try another rebound.';
+      return 'Preview complete. Retry for another rebound.';
     }
 
-    return 'Tchoukball preview waits for P1 throw, then CPU/P2 reply.';
+    return 'P1 throw, then CPU/P2 reply.';
   }
 
   return state.result.reason;
@@ -214,14 +214,14 @@ function renderTchoukballLearningPanel(): string {
   return `
     <section class="game-shell__panel game-shell__panel--learning game-shell__panel--tchoukball" aria-labelledby="tchoukball-learning-title">
       <p id="tchoukball-learning-title" class="game-shell__panel-label">Learn Tchoukball</p>
-      <p class="game-shell__learning-copy">Try one rebound shot, watch a compact demo, or open guided steps. This preview teaches the frame + landing idea only.</p>
+      <p class="game-shell__learning-copy">Try one rebound shot, watch a demo, or open guided steps.</p>
       <div class="game-shell__learning-actions game-shell__learning-actions--foundation" aria-label="Tchoukball tutorial controls">
         <button class="button button--secondary" type="button" data-tchoukball-watch-demo>Watch demo</button>
         <button class="button button--secondary" type="button" data-tchoukball-slow-demo>Slow demo</button>
         <button class="button button--icon" type="button" data-tchoukball-stop-demo disabled>Stop demo</button>
         <button class="button button--primary" type="button" data-tchoukball-guided-steps>Guided steps</button>
       </div>
-      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Ready: choose Watch demo, Slow demo, or Guided steps. Demo graphics do not change the real preview score.</p>
+      <p class="game-shell__learning-status" data-foundation-preview-status aria-live="polite">Ready: choose demo or guided steps.</p>
     </section>
   `;
 }
@@ -233,8 +233,8 @@ function renderSportPhasePanel(sport: GameShellSport, matchState: MatchState): s
         <p class="game-shell__panel-label">Tchoukball preview</p>
         <dl class="game-shell__match-details game-shell__match-details--compact" aria-live="polite">
           <div><dt>Status</dt><dd>Foundation preview</dd></div>
-          <div><dt>Landing rule</dt><dd>Outside forbidden zone</dd></div>
-          <div><dt>Reply</dt><dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'P2 after P1 shot' : 'CPU after P1 shot'}</dd></div>
+          <div><dt>Landing</dt><dd>Valid if outside forbidden zone</dd></div>
+          <div><dt>Reply</dt><dd data-boccia-cpu-note>${matchState.mode === 'local_2p' ? 'P2 reply after shot' : 'CPU reply after shot'}</dd></div>
         </dl>
       </div>
     `;
@@ -533,7 +533,7 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
     window.dispatchEvent(new CustomEvent('tchoukball:demo-stop'));
     openTchoukballGuidedSteps();
     markSportPlayed('tchoukball');
-    foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Guided steps opened: follow the compact Tchoukball frame, charge, rebound, and landing explanation.');
+    foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Guided steps opened: frame, charge, rebound, landing.');
   });
 
   window.addEventListener('boccia:guided-status', (event) => {
@@ -597,11 +597,11 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
     tchoukballStopDemoButton && (tchoukballStopDemoButton.disabled = !detail.active);
 
     if (!detail.active) {
-      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Ready: choose Watch demo, Slow demo, or Guided steps. Demo graphics do not change the real preview score.');
+      foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Ready: choose demo or guided steps.');
       return;
     }
 
-    foundationPreviewStatus && (foundationPreviewStatus.textContent = `${detail.slow ? 'Slow demo' : 'Demo running'}: Step ${detail.stepIndex} / ${detail.totalSteps} — ${detail.status}. Ghost graphics do not change the real preview score.`);
+    foundationPreviewStatus && (foundationPreviewStatus.textContent = `${detail.slow ? 'Slow demo' : 'Demo'}: ${detail.stepIndex}/${detail.totalSteps} — ${detail.status}.`);
   });
 
   subscribeProgress((progress) => {

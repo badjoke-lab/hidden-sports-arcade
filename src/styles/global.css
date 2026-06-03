@@ -1614,13 +1614,13 @@ dd {
   }
 }
 
-/* PR-027 Tchoukball readability layout */
+/* PR-028 Tchoukball overflow-safe layout */
 .game-shell__hud {
   min-width: 0;
 }
 
 .game-shell__hud > * {
-  min-width: 220px;
+  min-width: min(100%, 220px);
 }
 
 .game-shell--tchoukball .game-shell__layout {
@@ -1630,12 +1630,54 @@ dd {
     "learn"
     "hud";
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto;
+  grid-template-rows: auto auto auto auto;
+  grid-auto-rows: auto;
+  align-items: start;
 }
 
 .game-shell--tchoukball .game-shell__hud {
   position: static;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "score match result"
+    "actions mode difficulty"
+    "phase phase phase";
+  gap: 12px;
+  align-content: start;
+  align-items: start;
+}
+
+.game-shell--tchoukball .game-shell__hud > * {
+  min-width: 0;
+}
+
+.game-shell--tchoukball .game-shell__panel--score {
+  grid-area: score;
+}
+
+.game-shell--tchoukball .game-shell__panel--match {
+  grid-area: match;
+}
+
+.game-shell--tchoukball .game-shell__panel--result {
+  grid-area: result;
+}
+
+.game-shell--tchoukball .game-shell__panel--actions {
+  grid-area: actions;
+}
+
+.game-shell--tchoukball .game-shell__panel--mode {
+  grid-area: mode;
+}
+
+.game-shell--tchoukball .game-shell__panel--difficulty {
+  grid-area: difficulty;
+}
+
+.game-shell--tchoukball .game-shell__panel--tchoukball {
+  grid-area: phase;
 }
 
 .game-shell--tchoukball .game-shell__panel--learning {
@@ -1644,7 +1686,11 @@ dd {
 
 .game-shell--tchoukball .game-shell__panel--match .game-shell__match-details,
 .game-shell--tchoukball .game-shell__match-details--compact {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: 1fr;
+}
+
+.game-shell--tchoukball .game-shell__panel--tchoukball .game-shell__match-details--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .game-shell--tchoukball .game-shell__panel--match .game-shell__match-details div,
@@ -1661,11 +1707,15 @@ dd {
 }
 
 .game-shell--tchoukball .game-shell__actions {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .game-shell--tchoukball .game-shell__options {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.game-shell--tchoukball .game-shell__panel--difficulty .game-shell__options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .game-shell--tchoukball .game-shell__learning-copy,
@@ -1685,13 +1735,17 @@ dd {
       "difficulty"
       "score"
       "match"
-      "foundation"
-      "result";
+      "result"
+      "phase";
     grid-template-columns: minmax(0, 1fr);
   }
 
   .game-shell--tchoukball .game-shell__hud {
     display: contents;
+  }
+
+  .game-shell--tchoukball .game-shell__panel--tchoukball .game-shell__match-details--compact {
+    grid-template-columns: 1fr;
   }
 }
 
