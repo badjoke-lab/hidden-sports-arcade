@@ -13,6 +13,7 @@ import {
 } from '../../game/match/matchManager';
 import { BOCCIA_PLACEHOLDERS } from '../../game/sports/boccia/bocciaConfig';
 import { bocciaTutorialSteps } from '../../game/sports/boccia/bocciaTutorial';
+import { goalballTutorialSteps } from '../../game/sports/goalball/goalballTutorial';
 import { tchoukballTutorialSteps } from '../../game/sports/tchoukball/tchoukballTutorial';
 import type { Difficulty, MatchMode, MatchParticipant, MatchState, MatchStatus } from '../../game/types';
 import { inputManager } from '../../input/inputManager';
@@ -31,7 +32,7 @@ import type { ProgressState } from '../../progress/types';
 import { showTutorialOverlay } from './TutorialOverlay';
 import { setupVirtualControls, VirtualControls } from './VirtualControls';
 
-export type GameShellSport = 'boccia' | 'tchoukball';
+export type GameShellSport = 'boccia' | 'tchoukball' | 'goalball';
 
 const modeLabels: Record<MatchMode, string> = {
   vs_cpu: 'VS CPU',
@@ -71,6 +72,10 @@ function inputValue(active: boolean): string {
 }
 
 function resultTextForSport(sport: GameShellSport, state: MatchState): string {
+  if (sport === 'goalball') {
+    return 'Foundation preview: scoring and shots will come later.';
+  }
+
   if (sport === 'tchoukball') {
     if (state.status === 'playing') {
       return state.mode === 'local_2p'
@@ -100,6 +105,7 @@ function sportLabel(sportId: string | undefined): string {
   const labels: Record<string, string> = {
     boccia: 'Boccia',
     tchoukball: 'Tchoukball',
+    goalball: 'Goalball',
   };
 
   return labels[sportId] ?? sportId;
@@ -226,7 +232,42 @@ function renderTchoukballLearningPanel(): string {
   `;
 }
 
+function renderGoalballLearningPanel(): string {
+  return `
+    <section class="game-shell__panel game-shell__panel--learning game-shell__panel--goalball" aria-labelledby="goalball-learning-title">
+      <p id="goalball-learning-title" class="game-shell__panel-label">Learn Goalball</p>
+      <p class="game-shell__learning-copy">Foundation placeholder: read the planned defensive steps before gameplay arrives.</p>
+      <ol class="game-shell__learning-list">
+        ${goalballTutorialSteps.map((step) => `<li>${step.title}</li>`).join('')}
+      </ol>
+      <div class="game-shell__learning-actions game-shell__learning-actions--foundation" aria-label="Goalball learning controls">
+        <button class="button button--primary" type="button" data-goalball-guided-steps>Guided steps</button>
+        <a class="button button--secondary" href="/sports/goalball/rules/">Rules</a>
+        <a class="button button--icon" href="/sports/">Back to sports</a>
+      </div>
+      <p class="game-shell__learning-status" data-goalball-learning-status aria-live="polite">Preview only: playable defense, shots, and scoring are planned later.</p>
+    </section>
+  `;
+}
+
+function renderGoalballFoundationPanel(): string {
+  return `
+    <div class="game-shell__panel game-shell__panel--goalball">
+      <p class="game-shell__panel-label">Preview info</p>
+      <dl class="game-shell__match-details game-shell__match-details--compact" aria-live="polite">
+        <div><dt>Preview status</dt><dd>Foundation</dd></div>
+        <div><dt>Mode</dt><dd>Foundation preview</dd></div>
+        <div><dt>Core idea</dt><dd>Defend the goal by reading the ball lane</dd></div>
+      </dl>
+    </div>
+  `;
+}
+
 function renderSportPhasePanel(sport: GameShellSport, matchState: MatchState): string {
+  if (sport === 'goalball') {
+    return renderGoalballFoundationPanel();
+  }
+
   if (sport === 'tchoukball') {
     return `
       <div class="game-shell__panel game-shell__panel--tchoukball">
@@ -272,12 +313,66 @@ function renderControlHints(): string {
 
 export function GameShell(sport: GameShellSport): string {
   const matchState = getMatchState();
-  const sportName = sport === 'tchoukball' ? 'Tchoukball' : 'Boccia';
+  const sportName = sport === 'goalball' ? 'Goalball' : sport === 'tchoukball' ? 'Tchoukball' : 'Boccia';
   const sportNote =
-    sport === 'tchoukball'
-      ? 'Foundation VS CPU and Local 2P rebound preview.'
-      : 'One-ball VS CPU and Local 2P arcade scoring preview.';
+    sport === 'goalball'
+      ? 'Foundation preview: visual court, goals, defenders, ball, and sound lane.'
+      : sport === 'tchoukball'
+        ? 'Foundation VS CPU and Local 2P rebound preview.'
+        : 'One-ball VS CPU and Local 2P arcade scoring preview.';
   const rulesHref = `/sports/${sport}/rules/`;
+
+  if (sport === 'goalball') {
+    return `
+      <section id="play" class="game-shell game-shell--goalball" aria-labelledby="game-shell-title">
+        <div class="section-heading section-heading--split game-shell__heading">
+          <div>
+            <p class="eyebrow">Play Goalball</p>
+            <h1 id="game-shell-title">Goalball</h1>
+          </div>
+          <div class="section-heading__actions">
+            <p class="section-heading__note">${sportNote}</p>
+            <a class="button button--secondary" href="${rulesHref}">Goalball rules</a>
+            <a class="button button--icon" href="/sports/">Back to sports</a>
+          </div>
+        </div>
+
+        <div class="game-shell__layout">
+          <div class="game-shell__stage" aria-label="Goalball play area">
+            <div class="game-shell__frame">
+              <div id="game-root" class="game-shell__canvas" aria-label="Hidden Sports Arcade Goalball game canvas"></div>
+            </div>
+          </div>
+
+          <section class="game-shell__panel game-shell__panel--virtual" aria-labelledby="virtual-controls-title">
+            <p id="virtual-controls-title" class="game-shell__panel-label">Virtual controls</p>
+            <p class="game-shell__objective">Placeholder controls for future defending movement.</p>
+            ${VirtualControls()}
+          </section>
+
+          ${renderGoalballLearningPanel()}
+
+          <aside class="game-shell__hud" aria-label="Goalball heads-up display">
+            ${renderGoalballFoundationPanel()}
+            <section class="game-shell__panel game-shell__panel--result" aria-labelledby="result-title">
+              <p id="result-title" class="game-shell__panel-label">Goalball HUD foundation</p>
+              <p><span data-game-shell-result>${resultTextForSport(sport, matchState)}</span></p>
+            </section>
+          </aside>
+        </div>
+
+        <div class="game-shell__lower-grid" aria-label="Goalball secondary panels">
+          <section class="game-shell__panel" aria-labelledby="objective-title">
+            <p id="objective-title" class="game-shell__panel-label">Objective</p>
+            <p class="game-shell__objective"><span data-game-shell-objective>Defend the goal by reading the ball lane.</span><br /><span class="game-shell__note">Simplified foundation preview only: no throws, scoring, CPU, or Local 2P yet.</span></p>
+          </section>
+          ${renderAudioPanel()}
+          ${renderProgressPanel()}
+          ${renderInputDebugPanel(inputManager.getInputState())}
+        </div>
+      </section>
+    `;
+  }
 
   return `
     <section id="play" class="game-shell game-shell--${sport}" aria-labelledby="game-shell-title">
@@ -416,6 +511,8 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
   const tchoukballStopDemoButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-stop-demo]');
   const tchoukballGuidedStepsButton = root.querySelector<HTMLButtonElement>('[data-tchoukball-guided-steps]');
   const foundationPreviewStatus = root.querySelector<HTMLElement>('[data-foundation-preview-status]');
+  const goalballGuidedStepsButton = root.querySelector<HTMLButtonElement>('[data-goalball-guided-steps]');
+  const goalballLearningStatus = root.querySelector<HTMLElement>('[data-goalball-learning-status]');
   const virtualButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-virtual-input-action]'));
   const inputStateFields = {
     aimLeft: root.querySelector<HTMLElement>('[data-input-state="aimLeft"]'),
@@ -455,6 +552,16 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
       sportName: 'Tchoukball',
       onFinish: () => markTutorialSeen('tchoukball'),
       onSkip: () => markTutorialSeen('tchoukball'),
+    });
+  }
+
+  function openGoalballGuidedSteps(): void {
+    goalballLearningStatus && (goalballLearningStatus.textContent = 'Guided placeholder opened: gameplay controls are planned later.');
+    showTutorialOverlay({
+      steps: goalballTutorialSteps,
+      sportName: 'Goalball',
+      onFinish: () => markTutorialSeen('goalball'),
+      onSkip: () => markTutorialSeen('goalball'),
     });
   }
 
@@ -534,6 +641,12 @@ export function setupGameShell(root: HTMLElement, sport: GameShellSport): void {
     openTchoukballGuidedSteps();
     markSportPlayed('tchoukball');
     foundationPreviewStatus && (foundationPreviewStatus.textContent = 'Guided steps opened: frame, charge, rebound, landing.');
+  });
+
+  goalballGuidedStepsButton?.addEventListener('click', () => {
+    audioManager.playSe('select');
+    openGoalballGuidedSteps();
+    markSportPlayed('goalball');
   });
 
   window.addEventListener('boccia:guided-status', (event) => {

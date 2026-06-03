@@ -51,8 +51,8 @@ export const sports: Sport[] = [
     summary:
       'A sound-focused sport where players defend a wide goal and track a bell-filled ball.',
     tags: ['Sensory', 'Team', 'Paralympic Sport'],
-    status: 'coming-soon',
-    matchLength: '3–5 min arcade match',
+    status: 'foundation',
+    matchLength: 'Foundation preview only',
     difficulty: 'medium',
     templateType: 'sound-awareness',
   },
