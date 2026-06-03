@@ -76,33 +76,33 @@ const DEMO_STEP_COUNT = 6;
 const demoStepCopy: Record<TchoukballDemoStep, { title: string; body: string; status: string }> = {
   idle: { title: '', body: '', status: 'ready' },
   aim: {
-    title: 'Step 1: Aim at the rebound frame',
-    body: 'Point the throw line toward the angled frame. This ghost demo does not touch the real score.',
+    title: 'Aim at frame',
+    body: 'Point the throw line at the frame.',
     status: 'aiming at the frame',
   },
   charge: {
-    title: 'Step 2: Charge power',
-    body: 'Hold Primary to build power before release.',
+    title: 'Charge power',
+    body: 'Hold Primary, then release.',
     status: 'charging power',
   },
   throw: {
-    title: 'Step 3: Throw to the frame',
-    body: 'Release Primary so the ball travels into the rebound frame.',
+    title: 'Throw to frame',
+    body: 'Send the ball into the frame.',
     status: 'throwing to the frame',
   },
   rebound: {
-    title: 'Step 4: Rebound back into the court',
-    body: 'After frame contact, the ball bounces back toward open court space.',
+    title: 'Rebound into court',
+    body: 'Watch the ball return to court.',
     status: 'showing the rebound path',
   },
   landing: {
-    title: 'Step 5: Landing preview',
-    body: 'A landing in bounds and outside the forbidden zone becomes a valid preview.',
+    title: 'Landing preview',
+    body: 'Valid if outside forbidden zone.',
     status: 'checking the landing preview',
   },
   reply: {
-    title: 'Step 6: CPU/P2 reply preview',
-    body: 'The CPU or Player 2 gets one reply shot, then the preview score compares valid landings.',
+    title: 'CPU/P2 reply',
+    body: 'One reply shot decides the preview.',
     status: 'showing the reply preview',
   },
 };
@@ -1103,10 +1103,10 @@ export class TchoukballScene extends Phaser.Scene {
     const copy = demoStepCopy[step];
 
     this.demoGraphics.clear();
-    this.demoGraphics.fillStyle(0x020617, 0.8);
-    this.demoGraphics.fillRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 124, 14);
-    this.demoGraphics.lineStyle(2, 0x7dd3fc, 0.56);
-    this.demoGraphics.strokeRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 124, 14);
+    this.demoGraphics.fillStyle(0x020617, 0.72);
+    this.demoGraphics.fillRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 88, 14);
+    this.demoGraphics.lineStyle(2, 0x7dd3fc, 0.46);
+    this.demoGraphics.strokeRoundedRect(this.court.left + 12, this.court.top + 12, textWidth + 26, 88, 14);
 
     this.demoGraphics.lineStyle(4, 0xfacc15, step === 'aim' ? 1 : 0.45);
     this.demoGraphics.lineBetween(this.playerStart.x, this.playerStart.y, aimEndX, aimEndY);
@@ -1232,7 +1232,7 @@ export class TchoukballScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, 52, 'Hit the frame, then land outside the forbidden zone.', {
+    this.add.text(centerX, 52, 'Valid if outside forbidden zone.', {
       align: 'center',
       color: '#bae6fd',
       fontFamily: 'Inter, sans-serif',
