@@ -6,8 +6,10 @@ const requiredRoutes = [
   '/sports/',
   '/sports/boccia/',
   '/sports/tchoukball/',
+  '/sports/goalball/',
   '/sports/boccia/rules/',
   '/sports/tchoukball/rules/',
+  '/sports/goalball/rules/',
 ];
 
 const distDir = 'dist';
@@ -47,7 +49,7 @@ for (const route of requiredRoutes) {
   assert(builtText.includes(route), `Built app is missing route string: ${route}`);
 }
 
-for (const label of ['Boccia', 'Tchoukball', 'Game failed to start.', 'Back to sports']) {
+for (const label of ['Boccia', 'Tchoukball', 'Goalball', 'Game failed to start.', 'Back to sports']) {
   assert(builtText.includes(label), `Built app is missing visible shell/fallback text: ${label}`);
 }
 

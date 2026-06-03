@@ -7,6 +7,8 @@ import { setupGameShell } from './components/GameShell';
 import { Header } from './components/Header';
 import { BocciaPage } from './pages/BocciaPage';
 import { BocciaRulesPage } from './pages/BocciaRulesPage';
+import { GoalballPage } from './pages/GoalballPage';
+import { GoalballRulesPage } from './pages/GoalballRulesPage';
 import { HomePage } from './pages/HomePage';
 import { SportsPage } from './pages/SportsPage';
 import { TchoukballPage } from './pages/TchoukballPage';
@@ -45,10 +47,14 @@ function routeContent(pathname: string, sports: Sport[]): { content: string; spo
       return { content: BocciaPage(), sport: 'boccia' };
     case '/sports/tchoukball/':
       return { content: TchoukballPage(), sport: 'tchoukball' };
+    case '/sports/goalball/':
+      return { content: GoalballPage(), sport: 'goalball' };
     case '/sports/boccia/rules/':
       return { content: BocciaRulesPage(), sport: null };
     case '/sports/tchoukball/rules/':
       return { content: TchoukballRulesPage(), sport: null };
+    case '/sports/goalball/rules/':
+      return { content: GoalballRulesPage(), sport: null };
     case '/':
       return { content: HomePage(sports), sport: null };
     default:

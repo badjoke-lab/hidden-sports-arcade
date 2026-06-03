@@ -1807,3 +1807,56 @@ dd {
   gap: 10px;
   margin-top: 8px;
 }
+
+/* PR-031 Goalball foundation preview */
+.game-shell__panel--goalball {
+  grid-area: foundation;
+  border-color: rgba(56, 189, 248, 0.38);
+  background: rgba(30, 58, 138, 0.16);
+}
+
+.game-shell__learning-list {
+  margin: 0 0 12px 20px;
+  padding: 0;
+  color: #dbeafe;
+  font-weight: 800;
+}
+
+.game-shell__learning-list li + li {
+  margin-top: 6px;
+}
+
+.game-shell--goalball,
+.game-shell--goalball * {
+  max-width: 100%;
+}
+
+.game-shell--goalball {
+  overflow-x: hidden;
+}
+
+.game-shell--goalball .game-shell__layout {
+  grid-template-areas:
+    "stage"
+    "controls"
+    "learn"
+    "hud";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
+  grid-auto-rows: auto;
+  align-items: start;
+}
+
+.game-shell--goalball .game-shell__hud {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .game-shell--goalball .game-shell__hud {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.game-shell--goalball .game-shell__panel--goalball {
+  grid-area: auto;
+}
