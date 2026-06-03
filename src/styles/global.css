@@ -1614,13 +1614,22 @@ dd {
   }
 }
 
-/* PR-028 Tchoukball overflow-safe layout */
+/* PR-029 Tchoukball stacked HUD safety layout */
 .game-shell__hud {
   min-width: 0;
 }
 
 .game-shell__hud > * {
   min-width: min(100%, 220px);
+}
+
+.game-shell--tchoukball,
+.game-shell--tchoukball * {
+  max-width: 100%;
+}
+
+.game-shell--tchoukball {
+  overflow-x: hidden;
 }
 
 .game-shell--tchoukball .game-shell__layout {
@@ -1638,18 +1647,26 @@ dd {
 .game-shell--tchoukball .game-shell__hud {
   position: static;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "score match result"
-    "actions mode difficulty"
-    "phase phase phase";
+    "actions"
+    "mode"
+    "difficulty"
+    "score"
+    "match"
+    "result"
+    "phase";
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
   align-content: start;
   align-items: start;
 }
 
 .game-shell--tchoukball .game-shell__hud > * {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .game-shell--tchoukball .game-shell__panel--score {
@@ -1710,7 +1727,7 @@ dd {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.game-shell--tchoukball .game-shell__options {
+.game-shell--tchoukball .game-shell__panel--mode .game-shell__options {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1730,18 +1747,8 @@ dd {
       "stage"
       "controls"
       "learn"
-      "actions"
-      "mode"
-      "difficulty"
-      "score"
-      "match"
-      "result"
-      "phase";
+      "hud";
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .game-shell--tchoukball .game-shell__hud {
-    display: contents;
   }
 
   .game-shell--tchoukball .game-shell__panel--tchoukball .game-shell__match-details--compact {
@@ -1749,13 +1756,16 @@ dd {
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 640px) {
   .game-shell--tchoukball .game-shell__hud > *,
   .game-shell--tchoukball .game-shell__panel {
     min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
-  .game-shell--tchoukball .game-shell__options,
+  .game-shell--tchoukball .game-shell__panel--mode .game-shell__options,
+  .game-shell--tchoukball .game-shell__panel--difficulty .game-shell__options,
   .game-shell--tchoukball .game-shell__actions,
   .game-shell--tchoukball .game-shell__learning-actions--foundation {
     grid-template-columns: 1fr;
