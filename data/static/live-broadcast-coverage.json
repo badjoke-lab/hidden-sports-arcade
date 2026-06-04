@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "description": "Schema-like structure for future public-safe research into official live broadcast and replay availability. Records are intentionally empty until jurisdiction research is completed from official or clearly official-partner sources.",
+  "policy": {
+    "allowed_sources": [
+      "official_authority",
+      "official_racecourse",
+      "official_event",
+      "official_broadcaster",
+      "official_streaming_partner",
+      "official_social_channel"
+    ],
+    "disallowed_content": [
+      "embedded_video",
+      "republished_video",
+      "unofficial_stream_mirror",
+      "entries",
+      "odds",
+      "results",
+      "payouts",
+      "full_racecards"
+    ]
+  },
+  "allowed_statuses": [
+    "official_free",
+    "official_account",
+    "betting_account",
+    "tv_pay",
+    "broadcast_partner",
+    "replay_available",
+    "social_stream",
+    "racecourse_only",
+    "event_only",
+    "geo_restricted",
+    "not_verified",
+    "none_found",
+    "archive_only",
+    "unsafe_unofficial"
+  ],
+  "confidence_values": [
+    "high",
+    "medium",
+    "low",
+    "not_verified"
+  ],
+  "record_fields": {
+    "jurisdiction_id": "Stable lowercase identifier for the jurisdiction or racing authority.",
+    "country_or_region": "Country, territory, state, province, or region covered by the record.",
+    "racing_types": "Array of racing types covered by the record, such as horse racing, harness racing, greyhound racing, or camel racing.",
+    "live_status": "Approved status value describing live broadcast availability.",
+    "replay_status": "Approved status value describing replay or archive availability.",
+    "provider_name": "Official authority, venue, event, broadcaster, streaming partner, or null when not verified.",
+    "official_live_url": "Official live information URL, or null when not verified or not available.",
+    "official_replay_url": "Official replay information URL, or null when not verified or not available.",
+    "requires_login": "Boolean indicating whether official access requires a non-betting login.",
+    "requires_betting_account": "Boolean indicating whether official access requires a betting or wagering account.",
+    "requires_paid_tv": "Boolean indicating whether official access requires paid TV or an equivalent paid broadcast package.",
+    "geo_restriction": "Neutral summary of stated geographic limits, or null when none are verified.",
+    "source_type": "Official source type from the allowed source list.",
+    "evidence_urls": "Array of official or clearly official-partner URLs used as evidence.",
+    "confidence": "Confidence value based on the clarity and recency of official evidence.",
+    "last_checked": "ISO 8601 date when the official evidence was reviewed.",
+    "notes": "Concise neutral notes about access limitations, uncertainty, or research scope."
+  },
+  "records": []
+}

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "description": "Public-safe status definitions for official live broadcast and replay availability research.",
+  "statuses": [
+    {
+      "id": "official_free",
+      "label": "Official free stream",
+      "definition": "Live video is available from an official source without a paid TV package, betting account, or required wagering relationship."
+    },
+    {
+      "id": "official_account",
+      "label": "Official account required",
+      "definition": "Live video is available from an official source, but access requires a standard login or registration."
+    },
+    {
+      "id": "betting_account",
+      "label": "Betting account required",
+      "definition": "Live video is described by an official or official-partner source as requiring a betting or wagering account."
+    },
+    {
+      "id": "tv_pay",
+      "label": "Paid TV required",
+      "definition": "Live video is available through an official broadcaster or rights-holder that requires a paid TV subscription or equivalent package."
+    },
+    {
+      "id": "broadcast_partner",
+      "label": "Broadcast partner",
+      "definition": "Live coverage is provided through a named official broadcast or streaming partner."
+    },
+    {
+      "id": "replay_available",
+      "label": "Replay available",
+      "definition": "Race replay video or archived official coverage is available from an official or official-partner source."
+    },
+    {
+      "id": "social_stream",
+      "label": "Official social stream",
+      "definition": "Live or replay coverage is published through a verified official social channel for the authority, venue, event, or rights-holder."
+    },
+    {
+      "id": "racecourse_only",
+      "label": "Racecourse-only viewing",
+      "definition": "Official information indicates viewing is available at the venue, with no verified public online live stream."
+    },
+    {
+      "id": "event_only",
+      "label": "Event-only coverage",
+      "definition": "Coverage is available only for specific events, meetings, festivals, or limited race days rather than as regular jurisdiction-wide coverage."
+    },
+    {
+      "id": "geo_restricted",
+      "label": "Geographically restricted",
+      "definition": "Official information indicates access is limited by country, region, territory, or rights market."
+    },
+    {
+      "id": "not_verified",
+      "label": "Not verified",
+      "definition": "No sufficient official or clearly official-partner evidence has been confirmed yet."
+    },
+    {
+      "id": "none_found",
+      "label": "No official source found",
+      "definition": "Reasonable checks of official and official-partner sources found no public live or replay source."
+    },
+    {
+      "id": "archive_only",
+      "label": "Archive only",
+      "definition": "Official source provides historical or archive video, but no verified current live coverage."
+    },
+    {
+      "id": "unsafe_unofficial",
+      "label": "Unsafe unofficial source",
+      "definition": "A source appears to be an unofficial mirror, repost, scraped stream, or unverified upload and must not be displayed as a usable viewing option."
+    }
+  ]
+}
